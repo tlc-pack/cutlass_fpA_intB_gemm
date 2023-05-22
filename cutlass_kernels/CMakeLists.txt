@@ -16,12 +16,7 @@
 include_directories(../cutlass_extensions/include/)
 include_directories(${CUTLASS_DIR}/include)
 include_directories(../utils)
-include_directories(/usr/local/cuda-12.1/targets/x86_64-linux/include)
-
-add_library(cutlass_heuristic SHARED cutlass_heuristic.cc)
-set_property(TARGET cutlass_heuristic PROPERTY POSITION_INDEPENDENT_CODE ON)
+include_directories(../)
 
 find_package(CUDA)
-include_directories(../)
-cuda_add_library(fpA_intB_gemm SHARED fpA_intB_gemm/fpA_intB_gemm_fp16_int4.cu fpA_intB_gemm/fpA_intB_gemm_fp16_int8.cu fpA_intB_gemm.cu)
-target_link_libraries(fpA_intB_gemm PRIVATE cutlass_heuristic)
+cuda_add_library(fpA_intB_gemm SHARED fpA_intB_gemm/fpA_intB_gemm_fp16_int4.cu fpA_intB_gemm/fpA_intB_gemm_fp16_int8.cu fpA_intB_gemm.cu cutlass_heuristic.cc)
