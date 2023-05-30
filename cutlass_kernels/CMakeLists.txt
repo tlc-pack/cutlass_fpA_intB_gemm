@@ -19,4 +19,4 @@ include_directories(../utils)
 include_directories(../)
 
 find_package(CUDA)
-cuda_add_library(fpA_intB_gemm SHARED fpA_intB_gemm/fpA_intB_gemm_fp16_int4.cu fpA_intB_gemm/fpA_intB_gemm_fp16_int8.cu fpA_intB_gemm.cu cutlass_heuristic.cc)
+cuda_add_library(fpA_intB_gemm SHARED fpA_intB_gemm/fpA_intB_gemm_fp16_int4.cu fpA_intB_gemm/fpA_intB_gemm_fp16_int8.cu fpA_intB_gemm.cu cutlass_heuristic.cc cutlass_preprocessors.cc)

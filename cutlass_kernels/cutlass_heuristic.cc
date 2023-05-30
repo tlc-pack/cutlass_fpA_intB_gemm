@@ -15,15 +15,10 @@
  */
 
 #include "cutlass_heuristic.h"
-// #include "utils/cuda_bf16_wrapper.h"
-
-#pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Wstrict-aliasing"
 #include "cutlass/gemm/gemm.h"
 #include "cutlass/numeric_types.h"
-#pragma GCC diagnostic pop
-
 #include <cuda_runtime_api.h>
+
 #include <vector>
 
 namespace fastertransformer {
