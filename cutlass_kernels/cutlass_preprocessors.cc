@@ -233,7 +233,7 @@ void subbyte_transpose_impl(int8_t *transposed_quantized_tensor,
   const int num_m_tiles = (num_rows + M_TILE_L1 - 1) / M_TILE_L1;
   const int num_n_tiles = (col_bytes + N_TILE_L1 - 1) / N_TILE_L1;
 
-  const size_t matrix_offset = num_rows * col_bytes;
+  const size_t matrix_offset = 0;
   for (size_t row_tile_start = 0; row_tile_start < num_rows;
        row_tile_start += M_TILE_L1) {
     for (size_t col_tile_start_byte = 0; col_tile_start_byte < col_bytes;
@@ -481,7 +481,7 @@ void interleave_column_major_tensor(int8_t *interleaved_quantized_tensor,
   const int vec_rows_per_tile = rows_per_tile / elts_in_int32;
   const int interleave = details.columns_interleaved;
 
-  const int64_t matrix_offset = int64_t(num_vec_rows) * int64_t(num_cols);
+  const int64_t matrix_offset = 0;
   for (int read_col = 0; read_col < num_cols; ++read_col) {
     const int64_t write_col = read_col / interleave;
     for (int base_vec_row = 0; base_vec_row < num_vec_rows;
