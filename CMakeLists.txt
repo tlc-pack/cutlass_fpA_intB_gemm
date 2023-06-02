@@ -1,3 +1,3 @@
-option(CUTLASS_DIR "The CUTLASS root directory")
+set(CUTLASS_DIR ${CMAKE_CURRENT_SOURCE_DIR}/cutlass)
 
 add_subdirectory(cutlass_kernels)
