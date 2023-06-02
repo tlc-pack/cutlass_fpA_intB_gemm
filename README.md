@@ -5,6 +5,6 @@ Extracted fp16 A and int8/4 B CUTLASS GEMM kernels from FasterTransformer for ea
 Build with
 ```
 mkdir build && cd build
-cmake -DCUTLASS_DIR=path/to/cutlass/root ..
+cmake ..
 make
 ```
