@@ -1,5 +1,8 @@
 #pragma once
 
+#include <cstddef>
+#include <cstdint>
+
 namespace fastertransformer {
 
 void preprocess_weights(int8_t *preprocessed_quantized_weight,

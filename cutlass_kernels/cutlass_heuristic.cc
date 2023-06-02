@@ -16,10 +16,10 @@
 
 #include "cutlass_heuristic.h"
 #include "cutlass/gemm/gemm.h"
-#include "cutlass/numeric_types.h"
 #include <cuda_runtime_api.h>
 
 #include <vector>
+#include <stdexcept>
 
 namespace fastertransformer {
 

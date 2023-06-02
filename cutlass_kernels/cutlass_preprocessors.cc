@@ -13,8 +13,8 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-#include "cutlass_extensions/gemm/kernel/mixed_gemm_B_layout.h"
-#include "fpA_intB_gemm.h"
+#include "cutlass_preprocessors.h"
+#include <vector>
 
 namespace fastertransformer {
 
@@ -41,73 +41,13 @@ struct LayoutDetails {
   bool uses_imma_ldsm = false;
 };
 
-template <typename Layout> struct getLayoutDetails {};
-
-template <> struct getLayoutDetails<cutlass::layout::RowMajor> {
-  LayoutDetails operator()() {
-    LayoutDetails layout_details;
-    layout_details.layoutB = LayoutDetails::Layout::ROW_MAJOR;
-    return layout_details;
-  }
-};
-
-template <> struct getLayoutDetails<cutlass::layout::ColumnMajor> {
-  LayoutDetails operator()() {
-    LayoutDetails layout_details;
-    layout_details.layoutB = LayoutDetails::Layout::COLUMN_MAJOR;
-    return layout_details;
-  }
-};
-
-template <int RowsPerTile, int ColumnsInterleaved>
-struct getLayoutDetails<cutlass::layout::ColumnMajorTileInterleave<
-    RowsPerTile, ColumnsInterleaved>> {
-  LayoutDetails operator()() {
-    LayoutDetails layout_details;
-    layout_details.layoutB = LayoutDetails::Layout::COLUMN_MAJOR;
-    layout_details.rows_per_column_tile = RowsPerTile;
-    layout_details.columns_interleaved = ColumnsInterleaved;
-    return layout_details;
-  }
-};
-
-template <typename cutlassArch, typename TypeB>
-LayoutDetails getLayoutDetailsForArchAndQuantType() {
-
-  using CompileTraits =
-      cutlass::gemm::kernel::LayoutDetailsB<TypeB, cutlassArch>;
-  using LayoutB = typename CompileTraits::Layout;
-  using MmaOperator = typename CompileTraits::Operator;
-  LayoutDetails details = getLayoutDetails<LayoutB>()();
-  details.uses_imma_ldsm = std::is_same<
-      MmaOperator,
-      cutlass::arch::OpMultiplyAddDequantizeInterleavedBToA>::value;
-  return details;
-}
-
-template <typename cutlassArch>
-LayoutDetails getLayoutDetailsForArch(QuantType quant_type) {
-  LayoutDetails details;
-  if (quant_type == QuantType::INT8_WEIGHT_ONLY) {
-    details = getLayoutDetailsForArchAndQuantType<cutlassArch, uint8_t>();
-  } else if (quant_type == QuantType::PACKED_INT4_WEIGHT_ONLY) {
-    details =
-        getLayoutDetailsForArchAndQuantType<cutlassArch, cutlass::uint4b_t>();
-  } else {
-  }
-  return details;
-}
-
 LayoutDetails getLayoutDetailsForTransform(QuantType quant_type, int arch) {
-  if (arch >= 70 && arch < 75) {
-    return getLayoutDetailsForArch<cutlass::arch::Sm70>(quant_type);
-  } else if (arch >= 75 && arch < 80) {
-    return getLayoutDetailsForArch<cutlass::arch::Sm75>(quant_type);
-  } else if (arch >= 80 && arch < 90) {
-    return getLayoutDetailsForArch<cutlass::arch::Sm80>(quant_type);
-  } else {
-    return LayoutDetails();
-  }
+  LayoutDetails details{LayoutDetails::Layout::COLUMN_MAJOR,
+			64, // rows_per_column_tile,
+			4,
+			true};
+
+  return details;
 }
 
 // Permutes the rows of B for Turing and Ampere. Throws an error for other
