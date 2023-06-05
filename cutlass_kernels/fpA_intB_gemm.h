@@ -22,4 +22,10 @@ void gemm_fp16_int4(const half *A, const uint4b_t *B, const half *weight_scales,
                     half *C, int m, int n, int k, char *workspace_ptr,
                     size_t workspace_bytes, cudaStream_t stream);
 
+void gemm_fp16_int4_bias(const half *A, const uint4b_t *B,
+                         const half *weight_scales, const half *biases, half *C,
+                         int m, int n, int k, char *workspace_ptr,
+                         size_t workspace_bytes,
+                         cudaStream_t stream);
+
 } // namespace fastertransformer

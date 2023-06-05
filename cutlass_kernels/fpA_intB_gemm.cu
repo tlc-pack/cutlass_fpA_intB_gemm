@@ -30,4 +30,18 @@ void gemm_fp16_int4(const half*  A,
 	      C, m, n, k, workspace_ptr, workspace_bytes, stream);
 }
 
+void gemm_fp16_int4_bias(const half*  A,
+		    const uint4b_t* B,
+		    const half* weight_scales,
+		    const half* biases,
+		    half* C,
+		    int m, int n, int k, char* workspace_ptr,
+		    size_t workspace_bytes,
+		    cudaStream_t stream) {
+  CutlassFpAIntBGemmRunner<half, uint4b_t> runner;
+
+  runner.gemm_bias_act(A, B, weight_scales, biases,
+		       C, m, n, k, ActivationType::Identity, workspace_ptr, workspace_bytes, stream);
+}
+
 } // namespace fastertransformer
