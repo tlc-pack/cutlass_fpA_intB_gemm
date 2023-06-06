@@ -125,6 +125,7 @@ void generic_mixed_gemm_kernelLauncher(const T*          A,
                                   {reinterpret_cast<ElementType*>(const_cast<T*>(A)), k},
                                   {reinterpret_cast<CutlassWeightType*>(const_cast<WeightType*>(B)), ldb},
                                   {reinterpret_cast<ElementType*>(const_cast<T*>(weight_scales)), 0},
+				  // TODO: Support more general bias shape
                                   {reinterpret_cast<ElementType*>(const_cast<T*>(biases)), 0},
                                   {reinterpret_cast<ElementType*>(C), n},
                                   gemm_config.split_k_factor,
@@ -547,53 +548,13 @@ template<typename T, typename WeightType>
 int CutlassFpAIntBGemmRunner<T, WeightType>::getWorkspaceSize(const int m, const int n, const int k)
 {
     FT_LOG_DEBUG(__PRETTY_FUNCTION__);
+    // TODO(masahi): Shouldn't it be 0?
+
     // These are the min tile sizes for each config, which would launch the maximum number of blocks
     const int max_grid_m = (m + 31) / 32;
     const int max_grid_n = (n + 127) / 128;
     // We need 4 bytes per block in the worst case. We launch split_k_limit in z dim.
     return max_grid_m * max_grid_n * split_k_limit * 4;
-}
-
-// =============================== Specialization T == WeightType =======================================
-template<typename WeightType>
-void CutlassFpAIntBGemmRunner<float, WeightType>::gemm_bias_act(const float*      A,
-                                                                const WeightType* B,
-                                                                const float*      weight_scales,
-                                                                const float*      biases,
-                                                                float*            C,
-                                                                int               m,
-                                                                int               n,
-                                                                int               k,
-                                                                ActivationType    activation_type,
-                                                                char*             workspace_ptr,
-                                                                const size_t      workspace_bytes,
-                                                                cudaStream_t      stream)
-{
-    FT_LOG_DEBUG(__PRETTY_FUNCTION__);
-    FT_CHECK_WITH_INFO(false, "Attempting to run mixed gemm bias act when the types are the same is an error.");
-}
-
-template<typename WeightType>
-void CutlassFpAIntBGemmRunner<float, WeightType>::gemm(const float*      A,
-                                                       const WeightType* B,
-                                                       const float*      weight_scales,
-                                                       float*            C,
-                                                       int               m,
-                                                       int               n,
-                                                       int               k,
-                                                       char*             workspace_ptr,
-                                                       const size_t      workspace_bytes,
-                                                       cudaStream_t      stream)
-{
-    FT_LOG_DEBUG(__PRETTY_FUNCTION__);
-    FT_CHECK_WITH_INFO(false, "Attempting to run mixed gemm when the types are the same is an error.");
-}
-
-template<typename WeightType>
-int CutlassFpAIntBGemmRunner<float, WeightType>::getWorkspaceSize(const int m, const int n, const int k)
-{
-    FT_LOG_DEBUG(__PRETTY_FUNCTION__);
-    return 0;
 }
 
 }  // namespace fastertransformer

@@ -14,6 +14,7 @@
  * limitations under the License.
  */
 #include "cutlass_preprocessors.h"
+#include "cuda_utils.h"
 #include <vector>
 
 namespace fastertransformer {
@@ -42,10 +43,10 @@ struct LayoutDetails {
 };
 
 LayoutDetails getLayoutDetailsForTransform(QuantType quant_type, int arch) {
+  // TODO
   LayoutDetails details{LayoutDetails::Layout::COLUMN_MAJOR,
-			64, // rows_per_column_tile,
-			4,
-			true};
+                        64, // rows_per_column_tile,
+                        4, true};
 
   return details;
 }
@@ -62,13 +63,11 @@ void permute_B_rows_for_mixed_gemm(int8_t *permuted_quantized_tensor,
                                    const std::vector<size_t> &shape,
                                    QuantType quant_type,
                                    const int64_t arch_version) {
-  const size_t num_experts = 1;
-  const size_t num_rows = shape.size() == 2 ? shape[0] : shape[1];
-  const size_t num_cols = shape.size() == 2 ? shape[1] : shape[2];
+  const size_t num_rows = shape[0];
+  const size_t num_cols = shape[1];
 
   const int BITS_PER_ELT = get_bits_in_quant_type(quant_type);
   const int K = 16 / BITS_PER_ELT;
-  const int ELTS_PER_BYTE = 8 / BITS_PER_ELT;
   const int ELTS_PER_REG = 32 / BITS_PER_ELT;
 
   const uint32_t *input_byte_ptr =
@@ -82,46 +81,38 @@ void permute_B_rows_for_mixed_gemm(int8_t *permuted_quantized_tensor,
 
   const int num_vec_cols = num_cols / elts_in_int32;
 
-  //    FT_CHECK_WITH_INFO(arch_version >= 75,
-  //                       "Unsupported Arch. Pre-volta not supported. Column
-  //                       interleave not needed on Volta.");
+  FT_CHECK_WITH_INFO(arch_version >= 75,
+                     "Unsupported Arch. Pre-volta not supported. Column "
+                     "interleave not needed on Volta.");
 
-  // FT_CHECK_WITH_INFO(
-  //     num_rows % B_ROWS_PER_MMA == 0,
-  //     fmtstr("Invalid shape for quantized tensor. Number
-  //     of rows of quantized matrix must be a multiple of
-  //     %d",
-  //            B_ROWS_PER_MMA));
-  // FT_CHECK_WITH_INFO(
-  //     num_cols % MMA_SHAPE_N == 0,
-  //     fmtstr("Invalid shape for quantized tensor. On
-  //     turing/Ampere, the number of cols must be a
-  //     multiple of %d.",
-  //            MMA_SHAPE_N));
+  FT_CHECK_WITH_INFO(num_rows % B_ROWS_PER_MMA == 0,
+                     fmtstr("Invalid shape for quantized tensor. Number of "
+                            "rows of quantized matrix must be a multiple of %d",
+                            B_ROWS_PER_MMA));
+
+  FT_CHECK_WITH_INFO(
+      num_cols % MMA_SHAPE_N == 0,
+      fmtstr("Invalid shape for quantized tensor. On turing/Ampere, the number "
+             "of cols must be a multiple of %d.",
+             MMA_SHAPE_N));
 
   // The code is written as below so it works for both int8
   // and packed int4.
-  for (int expert = 0; expert < num_experts; ++expert) {
-    const int64_t matrix_offset =
-        expert * int64_t(num_rows) * int64_t(num_vec_cols);
-    for (int base_row = 0; base_row < num_rows; base_row += B_ROWS_PER_MMA) {
-      for (int tile_row = 0; tile_row < B_ROWS_PER_MMA; ++tile_row) {
+  for (size_t base_row = 0; base_row < num_rows; base_row += B_ROWS_PER_MMA) {
+    for (int tile_row = 0; tile_row < B_ROWS_PER_MMA; ++tile_row) {
 
-        for (int write_col = 0; write_col < num_vec_cols; ++write_col) {
-          const int write_row = base_row + tile_row;
-          const int tile_read_row = 8 * (((tile_row % ELTS_PER_REG) / 2)) +
-                                    tile_row % 2 +
-                                    2 * (tile_row / ELTS_PER_REG);
-          const int read_row = base_row + tile_read_row;
-          const int read_col = write_col;
+      for (int write_col = 0; write_col < num_vec_cols; ++write_col) {
+        const int write_row = base_row + tile_row;
+        const int tile_read_row = 8 * (((tile_row % ELTS_PER_REG) / 2)) +
+                                  tile_row % 2 + 2 * (tile_row / ELTS_PER_REG);
+        const int read_row = base_row + tile_read_row;
+        const int read_col = write_col;
 
-          const int64_t read_offset =
-              matrix_offset + int64_t(read_row) * num_vec_cols + read_col;
-          const int64_t write_offset =
-              matrix_offset + int64_t(write_row) * num_vec_cols + write_col;
+        const int64_t read_offset = int64_t(read_row) * num_vec_cols + read_col;
+        const int64_t write_offset =
+            int64_t(write_row) * num_vec_cols + write_col;
 
-          output_byte_ptr[write_offset] = input_byte_ptr[read_offset];
-        }
+        output_byte_ptr[write_offset] = input_byte_ptr[read_offset];
       }
     }
   }
@@ -136,13 +127,11 @@ void subbyte_transpose_impl(int8_t *transposed_quantized_tensor,
                             const int8_t *quantized_tensor,
                             const std::vector<size_t> &shape) {
   const int bits_per_elt = get_bits_in_quant_type(quant_type);
-  const size_t num_experts = 1;
-  const size_t num_rows = shape.size() == 2 ? shape[0] : shape[1];
-  const size_t num_cols = shape.size() == 2 ? shape[1] : shape[2];
+  const size_t num_rows = shape[0];
+  const size_t num_cols = shape[1];
 
   const size_t col_bytes = num_cols * bits_per_elt / 8;
   const size_t col_bytes_trans = num_rows * bits_per_elt / 8;
-  const size_t num_bytes = size_t(num_experts) * num_rows * col_bytes;
 
   const uint8_t *input_byte_ptr =
       reinterpret_cast<const uint8_t *>(quantized_tensor);
@@ -161,19 +150,13 @@ void subbyte_transpose_impl(int8_t *transposed_quantized_tensor,
   // We assume the dims are a multiple of vector width. Our kernels only handle
   // dims which are multiples of 64 for weight-only quantization. As a result,
   // this seemed like a reasonable tradeoff because it allows GCC to emit vector
-  // instructions. FT_CHECK_WITH_INFO(
-  //     !(col_bytes_trans % VECTOR_WIDTH) && !(col_bytes % VECTOR_WIDTH),
-  //     fmtstr(
-  //         "Number of bytes for rows and cols must be a multiple of %d.
-  //         However, num_rows_bytes = %ld and num_col_bytes = %d.",
-  //         VECTOR_WIDTH,
-  //         col_bytes_trans,
-  //         col_bytes));
+  // instructions.
+  FT_CHECK_WITH_INFO(
+      !(col_bytes_trans % VECTOR_WIDTH) && !(col_bytes % VECTOR_WIDTH),
+      fmtstr("Number of bytes for rows and cols must be a multiple of %d. "
+             "However, num_rows_bytes = %ld and num_col_bytes = %d.",
+             VECTOR_WIDTH, col_bytes_trans, col_bytes));
 
-  const int num_m_tiles = (num_rows + M_TILE_L1 - 1) / M_TILE_L1;
-  const int num_n_tiles = (col_bytes + N_TILE_L1 - 1) / N_TILE_L1;
-
-  const size_t matrix_offset = 0;
   for (size_t row_tile_start = 0; row_tile_start < num_rows;
        row_tile_start += M_TILE_L1) {
     for (size_t col_tile_start_byte = 0; col_tile_start_byte < col_bytes;
@@ -189,8 +172,7 @@ void subbyte_transpose_impl(int8_t *transposed_quantized_tensor,
         for (int jj = 0; jj < N_TILE_L1; jj += VECTOR_WIDTH) {
           const int col = col_tile_start_byte + jj;
 
-          const size_t logical_src_offset =
-              matrix_offset + row * col_bytes + col;
+          const size_t logical_src_offset = row * col_bytes + col;
 
           if (row < row_limit && col < col_limit) {
             for (int v = 0; v < VECTOR_WIDTH; ++v) {
@@ -232,8 +214,7 @@ void subbyte_transpose_impl(int8_t *transposed_quantized_tensor,
           }
         }
       } else {
-        //                    FT_CHECK_WITH_INFO(false, "Unsupported
-        //                    quantization type.");
+        FT_CHECK_WITH_INFO(false, "Unsupported quantization type.");
       }
 
       const size_t row_tile_start_trans = col_tile_start_byte * ELTS_PER_BYTE;
@@ -249,8 +230,7 @@ void subbyte_transpose_impl(int8_t *transposed_quantized_tensor,
         for (int jj = 0; jj < N_TILE_L1; jj += VECTOR_WIDTH) {
           const int col = col_tile_start_byte_trans + jj;
 
-          const size_t logical_tgt_offset =
-              matrix_offset + row * col_bytes_trans + col;
+          const size_t logical_tgt_offset = row * col_bytes_trans + col;
 
           if (row < row_limit_trans && col < col_limit_trans) {
             for (int v = 0; v < VECTOR_WIDTH; ++v) {
@@ -274,13 +254,13 @@ void subbyte_transpose(int8_t *transposed_quantized_tensor,
     subbyte_transpose_impl<QuantType::PACKED_INT4_WEIGHT_ONLY>(
         transposed_quantized_tensor, quantized_tensor, shape);
   } else {
-    //        FT_CHECK_WITH_INFO(false, "Invalid quant_tye");
+    FT_CHECK_WITH_INFO(false, "Invalid quant_tye");
   }
 }
 
 void add_bias_and_interleave_int8s_inplace(int8_t *int8_tensor,
                                            const size_t num_elts) {
-  for (int ii = 0; ii < num_elts; ++ii) {
+  for (size_t ii = 0; ii < num_elts; ++ii) {
     int8_tensor[ii] = int8_t(int(int8_tensor[ii]) + 128);
   }
 
@@ -294,8 +274,8 @@ void add_bias_and_interleave_int8s_inplace(int8_t *int8_tensor,
   // bit 32                                                      0
   //      [elt_3  elt_1  elt_2  elt_0] (each elt occupies 8 bits)
 
-  // FT_CHECK_WITH_INFO(num_elts % 4 == 0, "Dimensions of int8 tensor must be a
-  // multiple of 4 for register relayout");
+  FT_CHECK_WITH_INFO(num_elts % 4 == 0, "Dimensions of int8 tensor must be a "
+                                        "multiple of 4 for register relayout");
   for (size_t base = 0; base < num_elts; base += 4) {
     std::swap(int8_tensor[base + 1], int8_tensor[base + 2]);
   }
@@ -303,7 +283,7 @@ void add_bias_and_interleave_int8s_inplace(int8_t *int8_tensor,
 
 void add_bias_and_interleave_int4s_inplace(int8_t *packed_int4_tensor,
                                            const size_t num_elts) {
-  const int num_bytes = num_elts / 2;
+  const size_t num_bytes = num_elts / 2;
 
   // Step 1 will be to transform all the int4s to unsigned in order to make the
   // dequantize take as little instructions as possible in the CUDA code.
@@ -314,12 +294,12 @@ void add_bias_and_interleave_int4s_inplace(int8_t *packed_int4_tensor,
         8; // The double shift here is to ensure sign extension
     int8_t transformed_second_elt = (packed_int4_tensor[ii] >> 4) + 8;
 
-    // FT_CHECK_WITH_INFO(transformed_first_elt >= 0 && transformed_first_elt <=
-    // 15,
-    //                    "Illegal result for int4 transform (first elt)");
-    // FT_CHECK_WITH_INFO(transformed_second_elt >= 0 && transformed_second_elt
-    // <= 15,
-    //                    "Illegal result for int4 transform (second elt)");
+    FT_CHECK_WITH_INFO(transformed_first_elt >= 0 &&
+                           transformed_first_elt <= 15,
+                       "Illegal result for int4 transform (first elt)");
+    FT_CHECK_WITH_INFO(transformed_second_elt >= 0 &&
+                           transformed_second_elt <= 15,
+                       "Illegal result for int4 transform (second elt)");
 
     // We don't need to mask in these ops since everything should be in the
     // range 0-15
@@ -340,8 +320,8 @@ void add_bias_and_interleave_int4s_inplace(int8_t *packed_int4_tensor,
   //      [elt_7  elt_5  elt_3  elt_1  elt_6  elt_4  elt_2  elt_0] (each elt
   //      occupies 4 bits)
 
-  //    FT_CHECK_WITH_INFO(num_bytes % 4 == 0, "Dimensions of int4 tensor must
-  //    be a multiple of 8 for register relayout");
+  FT_CHECK_WITH_INFO(num_bytes % 4 == 0, "Dimensions of int4 tensor must be a "
+                                         "multiple of 8 for register relayout");
   const size_t num_registers = num_bytes / 4;
 
   uint32_t *register_ptr = reinterpret_cast<uint32_t *>(packed_int4_tensor);
@@ -369,8 +349,7 @@ void add_bias_and_interleave_quantized_tensor_inplace(int8_t *tensor,
   } else if (quant_type == QuantType::PACKED_INT4_WEIGHT_ONLY) {
     add_bias_and_interleave_int4s_inplace(tensor, num_elts);
   } else {
-    //        FT_CHECK_WITH_INFO(false, "Invalid quantization type for
-    //        interleaving.");
+    FT_CHECK_WITH_INFO(false, "Invalid quantization type for interleaving.");
   }
 }
 
@@ -379,51 +358,45 @@ void interleave_column_major_tensor(int8_t *interleaved_quantized_tensor,
                                     const std::vector<size_t> &shape,
                                     QuantType quant_type,
                                     LayoutDetails details) {
-
   // We only want to run this step for weight only quant.
-  //    FT_CHECK(quant_type == QuantType::PACKED_INT4_WEIGHT_ONLY || quant_type
-  //    == QuantType::INT8_WEIGHT_ONLY);
+  FT_CHECK(quant_type == QuantType::PACKED_INT4_WEIGHT_ONLY ||
+           quant_type == QuantType::INT8_WEIGHT_ONLY);
+  FT_CHECK_WITH_INFO(shape.size() == 2, "Shape must be 2-D");
 
-  // FT_CHECK_WITH_INFO(shape.size() == 2 || shape.size() == 3, "Shape must be
-  // 2-D or 3-D");
-  const size_t num_experts = 1;
-  const size_t num_rows = shape.size() == 2 ? shape[0] : shape[1];
-  const size_t num_cols = shape.size() == 2 ? shape[1] : shape[2];
+  const size_t num_rows = shape[0];
+  const size_t num_cols = shape[1];
 
   const int BITS_PER_ELT = get_bits_in_quant_type(quant_type);
   const int elts_in_int32 = 32 / BITS_PER_ELT;
 
   const int rows_per_tile = details.rows_per_column_tile;
 
-  // FT_CHECK_WITH_INFO(
-  //     !(num_rows % elts_in_int32),
-  //     fmtstr("The number of rows must be a multiple of %d but the number of
-  //     rows is %d.", elts_in_int32, num_rows));
+  FT_CHECK_WITH_INFO(!(num_rows % elts_in_int32),
+                     fmtstr("The number of rows must be a multiple of %d but "
+                            "the number of rows is %d.",
+                            elts_in_int32, num_rows));
 
-  // FT_CHECK_WITH_INFO(!(num_cols % rows_per_tile),
-  //                    fmtstr("The number of columns must be a multiple of %d
-  //                    but the number of columns is %ld",
-  //                           rows_per_tile,
-  //                           num_cols));
+  FT_CHECK_WITH_INFO(!(num_cols % rows_per_tile),
+                     fmtstr("The number of columns must be a multiple of %d "
+                            "but the number of columns is %ld",
+                            rows_per_tile, num_cols));
 
   const uint32_t *input_byte_ptr =
       reinterpret_cast<const uint32_t *>(quantized_tensor);
   uint32_t *output_byte_ptr =
       reinterpret_cast<uint32_t *>(interleaved_quantized_tensor);
 
-  // FT_CHECK_WITH_INFO(!(num_cols % rows_per_tile),
-  //                    fmtstr("The number of columns must be a multiple of %d
-  //                    but the number of columns is %d.",
-  //                           rows_per_tile,
-  //                           num_cols));
+  FT_CHECK_WITH_INFO(!(num_cols % rows_per_tile),
+                     fmtstr("The number of columns must be a multiple of %d "
+                            "but the number of columns is %d.",
+                            rows_per_tile, num_cols));
 
   const int num_vec_rows = num_rows / elts_in_int32;
   const int vec_rows_per_tile = rows_per_tile / elts_in_int32;
   const int interleave = details.columns_interleaved;
 
-  const int64_t matrix_offset = 0;
-  for (int read_col = 0; read_col < num_cols; ++read_col) {
-    const int64_t write_col = read_col / interleave;
+  for (size_t read_col = 0; read_col < num_cols; ++read_col) {
+    const auto write_col = read_col / interleave;
     for (int base_vec_row = 0; base_vec_row < num_vec_rows;
          base_vec_row += vec_rows_per_tile) {
       for (int vec_read_row = base_vec_row;
@@ -436,10 +409,9 @@ void interleave_column_major_tensor(int8_t *interleaved_quantized_tensor,
             vec_read_row % vec_rows_per_tile;
 
         const int64_t read_offset =
-            matrix_offset + int64_t(read_col) * num_vec_rows + vec_read_row;
+            int64_t(read_col) * num_vec_rows + vec_read_row;
         const int64_t write_offset =
-            matrix_offset + int64_t(write_col) * num_vec_rows * interleave +
-            vec_write_row;
+            int64_t(write_col) * num_vec_rows * interleave + vec_write_row;
         output_byte_ptr[write_offset] = input_byte_ptr[read_offset];
       }
     }
@@ -452,8 +424,7 @@ void preprocess_weights_for_mixed_gemm(int8_t *preprocessed_quantized_weight,
                                        QuantType quant_type, int arch) {
   LayoutDetails details = getLayoutDetailsForTransform(quant_type, arch);
 
-  //    FT_CHECK_WITH_INFO(shape.size() == 2 || shape.size() == 3, "Shape must
-  //    be 2-D or 3-D");
+  FT_CHECK_WITH_INFO(shape.size() == 2, "Shape must be 2-D");
 
   size_t num_elts = 1;
   for (const auto &dim : shape) {

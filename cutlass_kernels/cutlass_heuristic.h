@@ -20,7 +20,6 @@
 #include <cstddef>
 #include <cstdint>
 #include "cutlass_extensions/ft_gemm_configs.h"
-// #include "utils/cuda_utils.h"
 
 namespace fastertransformer {
 
