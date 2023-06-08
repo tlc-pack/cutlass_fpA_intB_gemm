@@ -104,6 +104,7 @@ struct GemmFpAIntBWithBroadcast {
 
     cutlass::gemm::GemmCoord problem_size;
     int batch_count;
+    typename EpilogueOutputOp::Params epilogue;
 
     void const *ptr_A;
     void const *ptr_B;
@@ -151,7 +152,7 @@ struct GemmFpAIntBWithBroadcast {
               typename LayoutC::Stride::Index ldc,
               typename LayoutC::Stride::Index ldd,
               typename LayoutC::Stride::Index ldr,
-              typename LayoutC::Stride::Index ldt
+              typename LayoutC::Stride::Index ldt,
               typename EpilogueOutputOp::Params output_op =
                   typename EpilogueOutputOp::Params())
         : problem_size(problem_size), batch_count(batch_count),
@@ -162,7 +163,7 @@ struct GemmFpAIntBWithBroadcast {
           batch_stride_C(batch_stride_C), batch_stride_D(batch_stride_D),
           batch_stride_Vector(batch_stride_Vector),
           batch_stride_Tensor(batch_stride_Tensor), lda(lda), ldb(ldb),
-          ldc(ldc), ldd(ldd), ldr(ldr), ldt(ldt) output_op(output_op),
+          ldc(ldc), ldd(ldd), ldr(ldr), ldt(ldt), output_op(output_op),
           gather_A_indices(nullptr), gather_B_indices(nullptr),
           scatter_D_indices(nullptr) {}
   };
@@ -181,6 +182,9 @@ struct GemmFpAIntBWithBroadcast {
     typename Epilogue::TensorTileIterator::Params params_Tensor;
 
     typename EpilogueOutputOp::Params output_op;
+
+    // GemmUniversalMode mode; todo
+    int batch_count;
     int gemm_k_size;
     void *ptr_A;
     void *ptr_B;
@@ -220,8 +224,8 @@ struct GemmFpAIntBWithBroadcast {
           swizzle_log_tile(ThreadblockSwizzle().get_log_tile(grid_tiled_shape)),
           params_A(args.lda), params_B(args.ldb), params_C(args.ldc),
           params_D(args.ldd), params_Tensor(args.ldt), output_op(args.epilogue),
-          mode(args.mode), batch_count(args.batch_count),
-          gemm_k_size(gemm_k_size), ptr_A(const_cast<void *>(args.ptr_A)),
+          batch_count(args.batch_count), gemm_k_size(gemm_k_size),
+          ptr_A(const_cast<void *>(args.ptr_A)),
           ptr_B(const_cast<void *>(args.ptr_B)),
           ptr_scales(const_cast<void *>(args.ptr_scales)),
           ptr_C(const_cast<void *>(args.ptr_C)), ptr_D(args.ptr_D),
@@ -248,7 +252,7 @@ struct GemmFpAIntBWithBroadcast {
   //
 
   CUTLASS_HOST_DEVICE
-  GemmFpAIntB() {}
+  GemmFpAIntBWithBroadcast() {}
 
   /// Determines whether kernel satisfies alignment
   CUTLASS_HOST_DEVICE
@@ -362,8 +366,8 @@ struct GemmFpAIntBWithBroadcast {
       cutlass::MatrixCoord tb_offset_scale{0, threadblock_tile_offset.n() *
                                                   Mma::Shape::kN};
 
-      // Problem size is a function of threadblock index in the K
-      dimension int problem_size_k =
+      // Problem size is a function of threadblock index in the K dimension
+      int problem_size_k =
           min(params.problem_size.k(),
               (threadblock_tile_offset.k() + 1) * params.gemm_k_size);
 

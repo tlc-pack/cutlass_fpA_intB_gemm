@@ -1,5 +1,6 @@
 #pragma once
 
+#include <string>
 #include <cuda_runtime.h>
 #include "cutlass/numeric_types.h"
 #include "cutlass/half.h"

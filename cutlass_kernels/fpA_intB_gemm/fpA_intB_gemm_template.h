@@ -559,78 +559,78 @@ void CutlassFpAIntBGemmRunner<T, WeightType>::gemm_bias_act_residual(
   using ElementType = cutlass::half_t;
   using ElementOutput = cutlass::half_t;
 
-  using MixedGemmArchTraits = cutlass::gemm::kernel::MixedGemmArchTraits<
-      ElementType, WeightType, Arch> using ElementAccumulator =
-      typename MixedGemmArchTraits::AccType;
+  // using MixedGemmArchTraits = cutlass::gemm::kernel::MixedGemmArchTraits<
+  //     ElementType, WeightType, Arch> using ElementAccumulator =
+  //     typename MixedGemmArchTraits::AccType;
 
-  using EpilogueOp = cutlass::epilogue::thread::LinearCombinationResidualBlock<
-      ElementOutput, ElementAccumulator, ElementAccumulator, ElementAccumulator,
-      128 / cutlass::sizeof_bits<ElementOutput>::value,
-      cutlass::epilogue::thread::Identity, cutlass::plus,
-      cutlass::epilogue::thread::Identity>;
+  // using EpilogueOp = cutlass::epilogue::thread::LinearCombinationResidualBlock<
+  //     ElementOutput, ElementAccumulator, ElementAccumulator, ElementAccumulator,
+  //     128 / cutlass::sizeof_bits<ElementOutput>::value,
+  //     cutlass::epilogue::thread::Identity, cutlass::plus,
+  //     cutlass::epilogue::thread::Identity>;
 
-  using GemmKernel_ = typename cutlass::gemm::kernel::DefaultGemm<
-      ElementType, cutlass::layout::RowMajor,
-      MixedGemmArchTraits::ElementsPerAccessA, WeightType,
-      typename MixedGemmArchTraits::LayoutB,
-      MixedGemmArchTraits::ElementsPerAccessB, ElementType,
-      cutlass::layout::RowMajor, ElementAccumulator,
-      cutlass::arch::OpClassTensorOp, Arch, ThreadblockShape, WarpShape,
-      typename MixedGemmArchTraits::InstructionShape, EpilogueOp,
-      typename cutlass::gemm::threadblock::GemmIdentityThreadblockSwizzle<>, stages,
-      true, typename MixedGemmArchTraits::Operator>::GemmKernel;
+  // using GemmKernel_ = typename cutlass::gemm::kernel::DefaultGemm<
+  //     ElementType, cutlass::layout::RowMajor,
+  //     MixedGemmArchTraits::ElementsPerAccessA, WeightType,
+  //     typename MixedGemmArchTraits::LayoutB,
+  //     MixedGemmArchTraits::ElementsPerAccessB, ElementType,
+  //     cutlass::layout::RowMajor, ElementAccumulator,
+  //     cutlass::arch::OpClassTensorOp, Arch, ThreadblockShape, WarpShape,
+  //     typename MixedGemmArchTraits::InstructionShape, EpilogueOp,
+  //     typename cutlass::gemm::threadblock::GemmIdentityThreadblockSwizzle<>, stages,
+  //     true, typename MixedGemmArchTraits::Operator>::GemmKernel;
 
-  using GemmKernel = cutlass::gemm::kernel::GemmFpAIntBWithBroadcast<
-      typename GemmKernel_::Mma, typename GemmKernel_::Epilogue,
-      typename GemmKernel_::ThreadblockSwizzle, Arch>;
+  // using GemmKernel = cutlass::gemm::kernel::GemmFpAIntBWithBroadcast<
+  //     typename GemmKernel_::Mma, typename GemmKernel_::Epilogue,
+  //     typename GemmKernel_::ThreadblockSwizzle, Arch>;
 
-  using Gemm = cutlass::gemm::device::GemmUniversalBase<GemmKernel>;
+  // using Gemm = cutlass::gemm::device::GemmUniversalBase<GemmKernel>;
 
-  const int batch_count = 1;
-  const auto lda = k;
-  const int ldb =
-      cutlass::platform::is_same<cutlass::layout::RowMajor,
-                                 typename MixedGemmArchTraits::LayoutB>::value
-          ? n
-          : k * GemmKernel::kInterleave;
-  const int ldc = n;
+  // const int batch_count = 1;
+  // const auto lda = k;
+  // const int ldb =
+  //     cutlass::platform::is_same<cutlass::layout::RowMajor,
+  //                                typename MixedGemmArchTraits::LayoutB>::value
+  //         ? n
+  //         : k * GemmKernel::kInterleave;
+  // const int ldc = n;
 
-  typename Gemm::Arguments args(
-      {m, n, k}, batch_count,
-      {ElementAccumulator(1.f), ElementAccumulator(0.f)}, A, B, weight_scales,
-      residual, C, biases, nullptr, 0, 0, 0, 0, 0, 0, lda, ldb, ldc, ldc, 0, 0);
+  // typename Gemm::Arguments args(
+  //     {m, n, k}, batch_count,
+  //     {ElementAccumulator(1.f), ElementAccumulator(0.f)}, A, B, weight_scales,
+  //     residual, C, biases, nullptr, 0, 0, 0, 0, 0, 0, lda, ldb, ldc, ldc, 0, 0);
 
-  // if (GemmKernel::kInterleave > 1
-  //     && ((k % MixedGemmArchTraits::ThreadblockK)
-  //         || ((k / gemm_config.split_k_factor) %
-  //         MixedGemmArchTraits::ThreadblockK))) {
-  //     throw std::runtime_error("Temp assertion: k must be multiple of
-  //     threadblockK");
+  // // if (GemmKernel::kInterleave > 1
+  // //     && ((k % MixedGemmArchTraits::ThreadblockK)
+  // //         || ((k / gemm_config.split_k_factor) %
+  // //         MixedGemmArchTraits::ThreadblockK))) {
+  // //     throw std::runtime_error("Temp assertion: k must be multiple of
+  // //     threadblockK");
+  // // }
+
+  // Gemm gemm;
+  // auto can_implement = gemm.can_implement(args);
+  // if (can_implement != cutlass::Status::kSuccess) {
+  //   std::string err_msg =
+  //       "fpA_intB cutlass kernel will fail for params. Error: " +
+  //       std::string(cutlassGetStatusString(can_implement));
+  //   throw std::runtime_error("[FT Error][fpA_intB Runner] " + err_msg);
   // }
 
-  Gemm gemm;
-  auto can_implement = gemm.can_implement(args);
-  if (can_implement != cutlass::Status::kSuccess) {
-    std::string err_msg =
-        "fpA_intB cutlass kernel will fail for params. Error: " +
-        std::string(cutlassGetStatusString(can_implement));
-    throw std::runtime_error("[FT Error][fpA_intB Runner] " + err_msg);
-  }
+  // auto init_status = gemm.initialize(args, workspace, stream);
+  // if (init_status != cutlass::Status::kSuccess) {
+  //   std::string err_msg =
+  //       "Failed to initialize cutlass fpA_intB gemm. Error: " +
+  //       std::string(cutlassGetStatusString(init_status));
+  //   throw std::runtime_error("[FT Error][fpA_intB Runner] " + err_msg);
+  // }
 
-  auto init_status = gemm.initialize(args, workspace, stream);
-  if (init_status != cutlass::Status::kSuccess) {
-    std::string err_msg =
-        "Failed to initialize cutlass fpA_intB gemm. Error: " +
-        std::string(cutlassGetStatusString(init_status));
-    throw std::runtime_error("[FT Error][fpA_intB Runner] " + err_msg);
-  }
-
-  auto run_status = gemm.run(stream);
-  if (run_status != cutlass::Status::kSuccess) {
-    std::string err_msg = "Failed to run cutlass fpA_intB gemm. Error: " +
-                          std::string(cutlassGetStatusString(run_status));
-    throw std::runtime_error("[FT Error][fpA_intB Runner] " + err_msg);
-  }
+  // auto run_status = gemm.run(stream);
+  // if (run_status != cutlass::Status::kSuccess) {
+  //   std::string err_msg = "Failed to run cutlass fpA_intB gemm. Error: " +
+  //                         std::string(cutlassGetStatusString(run_status));
+  //   throw std::runtime_error("[FT Error][fpA_intB Runner] " + err_msg);
+  // }
 }
 
 template<typename T, typename WeightType>

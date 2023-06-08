@@ -17,7 +17,7 @@ void gemm_fp16_int4(const half*  A,
 }
 
 ActivationType get_activation(const std::string& activation_name) {
-  if (activation == "identity") return ActivationType::Identity;
+  if (activation_name == "identity") return ActivationType::Identity;
   // todo: more
   return ActivationType::Identity;
 }
