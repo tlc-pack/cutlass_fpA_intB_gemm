@@ -295,16 +295,16 @@ void dispatch_gemm_config(const T*          A,
 
     FT_LOG_DEBUG(__PRETTY_FUNCTION__);
     switch (gemm_config.stages) {
-        case 2:
-            using DispatcherStages2 = dispatch_stages<T, WeightType, arch, EpilogueTag, ThreadblockShape, WarpShape, 2>;
-            DispatcherStages2::dispatch(
-                A, B, weight_scales, biases, C, m, n, k, gemm_config, workspace, workspace_bytes, stream, occupancy);
-            break;
-        case 3:
-            using DispatcherStages3 = dispatch_stages<T, WeightType, arch, EpilogueTag, ThreadblockShape, WarpShape, 3>;
-            DispatcherStages3::dispatch(
-                A, B, weight_scales, biases, C, m, n, k, gemm_config, workspace, workspace_bytes, stream, occupancy);
-            break;
+        // case 2:
+        //     using DispatcherStages2 = dispatch_stages<T, WeightType, arch, EpilogueTag, ThreadblockShape, WarpShape, 2>;
+        //     DispatcherStages2::dispatch(
+        //         A, B, weight_scales, biases, C, m, n, k, gemm_config, workspace, workspace_bytes, stream, occupancy);
+        //     break;
+        // case 3:
+        //     using DispatcherStages3 = dispatch_stages<T, WeightType, arch, EpilogueTag, ThreadblockShape, WarpShape, 3>;
+        //     DispatcherStages3::dispatch(
+        //         A, B, weight_scales, biases, C, m, n, k, gemm_config, workspace, workspace_bytes, stream, occupancy);
+        //     break;
         case 4:
             using DispatcherStages4 = dispatch_stages<T, WeightType, arch, EpilogueTag, ThreadblockShape, WarpShape, 4>;
             DispatcherStages4::dispatch(
@@ -339,24 +339,24 @@ void dispatch_gemm_to_cutlass(const T*          A,
     // We also only instantiate configs here where threadblockShapeM == warpShapeM since those usually perform the best
     // for mixed type gemms.
     switch (gemm_config.tile_config) {
-        case CutlassTileConfig::CtaShape32x128x64_WarpShape32x32x64:
-            dispatch_gemm_config<T,
-                                 WeightType,
-                                 arch,
-                                 EpilogueTag,
-                                 cutlass::gemm::GemmShape<32, 128, 64>,
-                                 cutlass::gemm::GemmShape<32, 32, 64>>(
-                A, B, weight_scales, biases, C, m, n, k, gemm_config, workspace, workspace_bytes, stream, occupancy);
-            break;
-        case CutlassTileConfig::CtaShape64x128x64_WarpShape64x32x64:
-            dispatch_gemm_config<T,
-                                 WeightType,
-                                 arch,
-                                 EpilogueTag,
-                                 cutlass::gemm::GemmShape<64, 128, 64>,
-                                 cutlass::gemm::GemmShape<64, 32, 64>>(
-                A, B, weight_scales, biases, C, m, n, k, gemm_config, workspace, workspace_bytes, stream, occupancy);
-            break;
+        // case CutlassTileConfig::CtaShape32x128x64_WarpShape32x32x64:
+        //     dispatch_gemm_config<T,
+        //                          WeightType,
+        //                          arch,
+        //                          EpilogueTag,
+        //                          cutlass::gemm::GemmShape<32, 128, 64>,
+        //                          cutlass::gemm::GemmShape<32, 32, 64>>(
+        //         A, B, weight_scales, biases, C, m, n, k, gemm_config, workspace, workspace_bytes, stream, occupancy);
+        //     break;
+        // case CutlassTileConfig::CtaShape64x128x64_WarpShape64x32x64:
+        //     dispatch_gemm_config<T,
+        //                          WeightType,
+        //                          arch,
+        //                          EpilogueTag,
+        //                          cutlass::gemm::GemmShape<64, 128, 64>,
+        //                          cutlass::gemm::GemmShape<64, 32, 64>>(
+        //         A, B, weight_scales, biases, C, m, n, k, gemm_config, workspace, workspace_bytes, stream, occupancy);
+        //     break;
         case CutlassTileConfig::CtaShape128x128x64_WarpShape128x32x64:
             dispatch_gemm_config<T,
                                  WeightType,
@@ -413,14 +413,14 @@ void CutlassFpAIntBGemmRunner<T, WeightType>::dispatch_to_arch<EpilogueTag>(cons
                                                                             int*              occupancy)
 {
     FT_LOG_DEBUG(__PRETTY_FUNCTION__);
-    if (sm_ >= 70 && sm_ < 75) {
-        dispatch_gemm_to_cutlass<T, WeightType, cutlass::arch::Sm70, EpilogueTag>(
-            A, B, weight_scales, biases, C, m, n, k, workspace_ptr, workspace_bytes, gemm_config, stream, occupancy);
-    }
-    else if (sm_ >= 75 && sm_ < 80) {
-        dispatch_gemm_to_cutlass<T, WeightType, cutlass::arch::Sm75, EpilogueTag>(
-            A, B, weight_scales, biases, C, m, n, k, workspace_ptr, workspace_bytes, gemm_config, stream, occupancy);
-    }
+    // if (sm_ >= 70 && sm_ < 75) {
+    //     dispatch_gemm_to_cutlass<T, WeightType, cutlass::arch::Sm70, EpilogueTag>(
+    //         A, B, weight_scales, biases, C, m, n, k, workspace_ptr, workspace_bytes, gemm_config, stream, occupancy);
+    // }
+    // else if (sm_ >= 75 && sm_ < 80) {
+    //     dispatch_gemm_to_cutlass<T, WeightType, cutlass::arch::Sm75, EpilogueTag>(
+    //         A, B, weight_scales, biases, C, m, n, k, workspace_ptr, workspace_bytes, gemm_config, stream, occupancy);
+    // }
     if (sm_ >= 80 && sm_ < 90) {
         dispatch_gemm_to_cutlass<T, WeightType, cutlass::arch::Sm80, EpilogueTag>(
             A, B, weight_scales, biases, C, m, n, k, workspace_ptr, workspace_bytes, gemm_config, stream, occupancy);
@@ -499,21 +499,21 @@ void CutlassFpAIntBGemmRunner<T, WeightType>::gemm_bias_act(const T*          A,
     FT_LOG_DEBUG(__PRETTY_FUNCTION__);
 
     switch (activation_type) {
-        case ActivationType::Relu:
-            run_gemm<EpilogueOpBiasReLU>(
-                A, B, weight_scales, biases, C, m, n, k, workspace_ptr, workspace_bytes, stream);
-            break;
-        case ActivationType::Gelu:
-            run_gemm<EpilogueOpBiasFtGelu>(
-                A, B, weight_scales, biases, C, m, n, k, workspace_ptr, workspace_bytes, stream);
-            break;
-        case ActivationType::Silu:
-            run_gemm<EpilogueOpBiasSilu>(
-                A, B, weight_scales, biases, C, m, n, k, workspace_ptr, workspace_bytes, stream);
-            break;
-        case ActivationType::Identity:
-            run_gemm<EpilogueOpBias>(A, B, weight_scales, biases, C, m, n, k, workspace_ptr, workspace_bytes, stream);
-            break;
+        // case ActivationType::Relu:
+        //     run_gemm<EpilogueOpBiasReLU>(
+        //         A, B, weight_scales, biases, C, m, n, k, workspace_ptr, workspace_bytes, stream);
+        //     break;
+        // case ActivationType::Gelu:
+        //     run_gemm<EpilogueOpBiasFtGelu>(
+        //         A, B, weight_scales, biases, C, m, n, k, workspace_ptr, workspace_bytes, stream);
+        //     break;
+        // case ActivationType::Silu:
+        //     run_gemm<EpilogueOpBiasSilu>(
+        //         A, B, weight_scales, biases, C, m, n, k, workspace_ptr, workspace_bytes, stream);
+        //     break;
+        // case ActivationType::Identity:
+        //     run_gemm<EpilogueOpBias>(A, B, weight_scales, biases, C, m, n, k, workspace_ptr, workspace_bytes, stream);
+        //     break;
         case ActivationType::InvalidType:
             FT_CHECK_WITH_INFO(false, "Activation type for fpA_intB must be valid.");
             break;
