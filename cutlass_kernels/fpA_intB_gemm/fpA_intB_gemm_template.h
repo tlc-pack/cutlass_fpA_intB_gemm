@@ -544,6 +544,13 @@ void CutlassFpAIntBGemmRunner<T, WeightType>::gemm(const T*          A,
     run_gemm<EpilogueOpNoBias>(A, B, weight_scales, nullptr, C, m, n, k, workspace_ptr, workspace_bytes, stream);
 }
 
+template <typename T, typename WeightType>
+void CutlassFpAIntBGemmRunner<T, WeightType>::gemm_bias_act_residual(
+    const T *A, const WeightType *B, const T *weight_scales, const T *biases,
+    const T *residual, T *C, int m, int n, int k,
+    ActivationType activation_type, char *workspace_ptr,
+    const size_t workspace_bytes, cudaStream_t stream) {}
+
 template<typename T, typename WeightType>
 int CutlassFpAIntBGemmRunner<T, WeightType>::getWorkspaceSize(const int m, const int n, const int k)
 {
