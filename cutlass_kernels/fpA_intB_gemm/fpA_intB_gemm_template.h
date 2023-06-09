@@ -298,16 +298,16 @@ void dispatch_gemm_config(const T*          A,
 
     FT_LOG_DEBUG(__PRETTY_FUNCTION__);
     switch (gemm_config.stages) {
-        // case 2:
-        //     using DispatcherStages2 = dispatch_stages<T, WeightType, arch, EpilogueTag, ThreadblockShape, WarpShape, 2>;
-        //     DispatcherStages2::dispatch(
-        //         A, B, weight_scales, biases, C, m, n, k, gemm_config, workspace, workspace_bytes, stream, occupancy);
-        //     break;
-        // case 3:
-        //     using DispatcherStages3 = dispatch_stages<T, WeightType, arch, EpilogueTag, ThreadblockShape, WarpShape, 3>;
-        //     DispatcherStages3::dispatch(
-        //         A, B, weight_scales, biases, C, m, n, k, gemm_config, workspace, workspace_bytes, stream, occupancy);
-        //     break;
+        case 2:
+            using DispatcherStages2 = dispatch_stages<T, WeightType, arch, EpilogueTag, ThreadblockShape, WarpShape, 2>;
+            DispatcherStages2::dispatch(
+                A, B, weight_scales, biases, C, m, n, k, gemm_config, workspace, workspace_bytes, stream, occupancy);
+            break;
+        case 3:
+            using DispatcherStages3 = dispatch_stages<T, WeightType, arch, EpilogueTag, ThreadblockShape, WarpShape, 3>;
+            DispatcherStages3::dispatch(
+                A, B, weight_scales, biases, C, m, n, k, gemm_config, workspace, workspace_bytes, stream, occupancy);
+            break;
         case 4:
             using DispatcherStages4 = dispatch_stages<T, WeightType, arch, EpilogueTag, ThreadblockShape, WarpShape, 4>;
             DispatcherStages4::dispatch(
@@ -342,24 +342,24 @@ void dispatch_gemm_to_cutlass(const T*          A,
     // We also only instantiate configs here where threadblockShapeM == warpShapeM since those usually perform the best
     // for mixed type gemms.
     switch (gemm_config.tile_config) {
-        // case CutlassTileConfig::CtaShape32x128x64_WarpShape32x32x64:
-        //     dispatch_gemm_config<T,
-        //                          WeightType,
-        //                          arch,
-        //                          EpilogueTag,
-        //                          cutlass::gemm::GemmShape<32, 128, 64>,
-        //                          cutlass::gemm::GemmShape<32, 32, 64>>(
-        //         A, B, weight_scales, biases, C, m, n, k, gemm_config, workspace, workspace_bytes, stream, occupancy);
-        //     break;
-        // case CutlassTileConfig::CtaShape64x128x64_WarpShape64x32x64:
-        //     dispatch_gemm_config<T,
-        //                          WeightType,
-        //                          arch,
-        //                          EpilogueTag,
-        //                          cutlass::gemm::GemmShape<64, 128, 64>,
-        //                          cutlass::gemm::GemmShape<64, 32, 64>>(
-        //         A, B, weight_scales, biases, C, m, n, k, gemm_config, workspace, workspace_bytes, stream, occupancy);
-        //     break;
+        case CutlassTileConfig::CtaShape32x128x64_WarpShape32x32x64:
+            dispatch_gemm_config<T,
+                                 WeightType,
+                                 arch,
+                                 EpilogueTag,
+                                 cutlass::gemm::GemmShape<32, 128, 64>,
+                                 cutlass::gemm::GemmShape<32, 32, 64>>(
+                A, B, weight_scales, biases, C, m, n, k, gemm_config, workspace, workspace_bytes, stream, occupancy);
+            break;
+        case CutlassTileConfig::CtaShape64x128x64_WarpShape64x32x64:
+            dispatch_gemm_config<T,
+                                 WeightType,
+                                 arch,
+                                 EpilogueTag,
+                                 cutlass::gemm::GemmShape<64, 128, 64>,
+                                 cutlass::gemm::GemmShape<64, 32, 64>>(
+                A, B, weight_scales, biases, C, m, n, k, gemm_config, workspace, workspace_bytes, stream, occupancy);
+            break;
         case CutlassTileConfig::CtaShape128x128x64_WarpShape128x32x64:
             dispatch_gemm_config<T,
                                  WeightType,
@@ -416,15 +416,10 @@ void CutlassFpAIntBGemmRunner<T, WeightType>::dispatch_to_arch<EpilogueTag>(cons
                                                                             int*              occupancy)
 {
     FT_LOG_DEBUG(__PRETTY_FUNCTION__);
-    // if (sm_ >= 70 && sm_ < 75) {
-    //     dispatch_gemm_to_cutlass<T, WeightType, cutlass::arch::Sm70, EpilogueTag>(
-    //         A, B, weight_scales, biases, C, m, n, k, workspace_ptr, workspace_bytes, gemm_config, stream, occupancy);
-    // }
-    // else if (sm_ >= 75 && sm_ < 80) {
-    //     dispatch_gemm_to_cutlass<T, WeightType, cutlass::arch::Sm75, EpilogueTag>(
-    //         A, B, weight_scales, biases, C, m, n, k, workspace_ptr, workspace_bytes, gemm_config, stream, occupancy);
-    // }
-    if (sm_ >= 80 && sm_ < 90) {
+    if (sm_ >= 75 && sm_ < 80) {
+        dispatch_gemm_to_cutlass<T, WeightType, cutlass::arch::Sm75, EpilogueTag>(
+            A, B, weight_scales, biases, C, m, n, k, workspace_ptr, workspace_bytes, gemm_config, stream, occupancy);
+    } else if (sm_ >= 80 && sm_ < 90) {
         dispatch_gemm_to_cutlass<T, WeightType, cutlass::arch::Sm80, EpilogueTag>(
             A, B, weight_scales, biases, C, m, n, k, workspace_ptr, workspace_bytes, gemm_config, stream, occupancy);
     }
@@ -502,21 +497,21 @@ void CutlassFpAIntBGemmRunner<T, WeightType>::gemm_bias_act(const T*          A,
     FT_LOG_DEBUG(__PRETTY_FUNCTION__);
 
     switch (activation_type) {
-        // case ActivationType::Relu:
-        //     run_gemm<EpilogueOpBiasReLU>(
-        //         A, B, weight_scales, biases, C, m, n, k, workspace_ptr, workspace_bytes, stream);
-        //     break;
-        // case ActivationType::Gelu:
-        //     run_gemm<EpilogueOpBiasFtGelu>(
-        //         A, B, weight_scales, biases, C, m, n, k, workspace_ptr, workspace_bytes, stream);
-        //     break;
-        // case ActivationType::Silu:
-        //     run_gemm<EpilogueOpBiasSilu>(
-        //         A, B, weight_scales, biases, C, m, n, k, workspace_ptr, workspace_bytes, stream);
-        //     break;
-        // case ActivationType::Identity:
-        //     run_gemm<EpilogueOpBias>(A, B, weight_scales, biases, C, m, n, k, workspace_ptr, workspace_bytes, stream);
-        //     break;
+        case ActivationType::Relu:
+            run_gemm<EpilogueOpBiasReLU>(
+                A, B, weight_scales, biases, C, m, n, k, workspace_ptr, workspace_bytes, stream);
+            break;
+        case ActivationType::Gelu:
+            run_gemm<EpilogueOpBiasFtGelu>(
+                A, B, weight_scales, biases, C, m, n, k, workspace_ptr, workspace_bytes, stream);
+            break;
+        case ActivationType::Silu:
+            run_gemm<EpilogueOpBiasSilu>(
+                A, B, weight_scales, biases, C, m, n, k, workspace_ptr, workspace_bytes, stream);
+            break;
+        case ActivationType::Identity:
+            run_gemm<EpilogueOpBias>(A, B, weight_scales, biases, C, m, n, k, workspace_ptr, workspace_bytes, stream);
+            break;
         case ActivationType::InvalidType:
             FT_CHECK_WITH_INFO(false, "Activation type for fpA_intB must be valid.");
             break;
@@ -547,41 +542,35 @@ void CutlassFpAIntBGemmRunner<T, WeightType>::gemm(const T*          A,
     run_gemm<EpilogueOpNoBias>(A, B, weight_scales, nullptr, C, m, n, k, workspace_ptr, workspace_bytes, stream);
 }
 
-template <typename T, typename WeightType>
-void CutlassFpAIntBGemmRunner<T, WeightType>::gemm_bias_act_residual(
-    const T *A, const WeightType *B, const T *weight_scales, const T *biases,
-    const T *residual, T *C, int m, int n, int k,
-    ActivationType activation_type, char *workspace_ptr,
-    const size_t workspace_bytes, cudaStream_t stream) {
-  constexpr int stages = 4;
-  using ThreadblockShape = cutlass::gemm::GemmShape<128, 128, 64>;
-  using WarpShape = cutlass::gemm::GemmShape<128, 32, 64>;
-  using Arch = cutlass::arch::Sm80;
-  using ElementType = cutlass::half_t;
-  using ElementOutput = cutlass::half_t;
+template <typename T, typename WeightType, typename Arch,
+          typename ThreadblockShape, typename WarpShape, typename EpilogueOp,
+          int stages>
+void dispatch_gemm_residual(const T *A, const WeightType *B,
+                            const T *weight_scales, const T *biases,
+                            const T *residual, T *C, int m, int n, int k,
+                            char *workspace_ptr, const size_t workspace_bytes,
+                            cudaStream_t stream) {
+  using ElementType = typename cutlass::platform::conditional<
+      cutlass::platform::is_same<T, half>::value, cutlass::half_t, T>::type;
+  using ElementOutput = ElementType;
 
-  using MixedGemmArchTraits = cutlass::gemm::kernel::MixedGemmArchTraits<
-    ElementType, WeightType, Arch>;
-  using ElementAccumulator = typename MixedGemmArchTraits::AccType;
+  using MixedGemmArchTraits =
+      cutlass::gemm::kernel::MixedGemmArchTraits<ElementType, WeightType, Arch>;
+  using ElementAccumulator = typename EpilogueOp::ElementAccumulator;
 
-  using EpilogueOp = cutlass::epilogue::thread::LinearCombinationResidualBlock<
-      ElementOutput, ElementAccumulator, ElementAccumulator, ElementOutput,
-      128 / cutlass::sizeof_bits<ElementOutput>::value,
-      cutlass::epilogue::thread::Identity, cutlass::plus,
-      cutlass::epilogue::thread::Identity>;
-
-  using Swizzle = typename cutlass::gemm::threadblock::GemmIdentityThreadblockSwizzle<>;
+  using Swizzle =
+      typename cutlass::gemm::threadblock::GemmIdentityThreadblockSwizzle<>;
   using InstructionShape = typename MixedGemmArchTraits::InstructionShape;
 
-  using Epilogue =
-      typename cutlass::gemm::kernel::DefaultGemmWithBroadcast < ElementType,
-        cutlass::layout::RowMajor, cutlass::ComplexTransform::kNone,
-        MixedGemmArchTraits::ElementsPerAccessA, WeightType,
-        typename MixedGemmArchTraits::LayoutB, cutlass::ComplexTransform::kNone,
-        MixedGemmArchTraits::ElementsPerAccessB, ElementType,
-        cutlass::layout::RowMajor, ElementAccumulator,
-        cutlass::arch::OpClassTensorOp, Arch, ThreadblockShape, WarpShape,
-        InstructionShape, EpilogueOp, Swizzle, stages, typename MixedGemmArchTraits::Operator>::Epilogue;
+  using Epilogue = typename cutlass::gemm::kernel::DefaultGemmWithBroadcast<
+      ElementType, cutlass::layout::RowMajor, cutlass::ComplexTransform::kNone,
+      MixedGemmArchTraits::ElementsPerAccessA, WeightType,
+      typename MixedGemmArchTraits::LayoutB, cutlass::ComplexTransform::kNone,
+      MixedGemmArchTraits::ElementsPerAccessB, ElementType,
+      cutlass::layout::RowMajor, ElementAccumulator,
+      cutlass::arch::OpClassTensorOp, Arch, ThreadblockShape, WarpShape,
+      InstructionShape, EpilogueOp, Swizzle, stages,
+      typename MixedGemmArchTraits::Operator>::Epilogue;
 
   using GemmKernel_ = typename cutlass::gemm::kernel::DefaultGemm<
       ElementType, cutlass::layout::RowMajor,
@@ -590,9 +579,8 @@ void CutlassFpAIntBGemmRunner<T, WeightType>::gemm_bias_act_residual(
       MixedGemmArchTraits::ElementsPerAccessB, ElementType,
       cutlass::layout::RowMajor, ElementAccumulator,
       cutlass::arch::OpClassTensorOp, Arch, ThreadblockShape, WarpShape,
-      InstructionShape, EpilogueOp,
-      Swizzle, stages,
-      true, typename MixedGemmArchTraits::Operator>::GemmKernel;
+      InstructionShape, EpilogueOp, Swizzle, stages, true,
+      typename MixedGemmArchTraits::Operator>::GemmKernel;
 
   using GemmKernel = cutlass::gemm::kernel::GemmFpAIntBWithBroadcast<
       typename GemmKernel_::Mma, Epilogue,
@@ -600,6 +588,7 @@ void CutlassFpAIntBGemmRunner<T, WeightType>::gemm_bias_act_residual(
 
   using Gemm = cutlass::gemm::device::GemmUniversalBase<GemmKernel>;
 
+  // TODO: Support batch
   const int batch_count = 1;
   const auto lda = k;
   const int ldb =
@@ -610,14 +599,15 @@ void CutlassFpAIntBGemmRunner<T, WeightType>::gemm_bias_act_residual(
   const int ldc = n;
 
   typename Gemm::Arguments args(
-      {m, n, k},
-      batch_count,
-      {ElementAccumulator(1.f), ElementAccumulator(1.f)},
-      A, B, weight_scales, residual, C, biases,
-      nullptr, 0, 0, 0, 0, 0, 0, lda, ldb, ldc, ldc, 0, 0);
+      {m, n, k}, batch_count,
+      {ElementAccumulator(1.f), ElementAccumulator(1.f)}, A, B, weight_scales,
+      residual, C, biases, nullptr, 0, 0, 0, 0, 0, 0, lda, ldb, ldc, ldc, 0, 0);
 
-  if (GemmKernel::kInterleave > 1 && ((k % MixedGemmArchTraits::ThreadblockK) || (k % MixedGemmArchTraits::ThreadblockK))) {
-      throw std::runtime_error("Temp assertion: k must be multiple of threadblockK");
+  if (GemmKernel::kInterleave > 1 &&
+      ((k % MixedGemmArchTraits::ThreadblockK) ||
+       (k % MixedGemmArchTraits::ThreadblockK))) {
+    throw std::runtime_error(
+        "Temp assertion: k must be multiple of threadblockK");
   }
 
   Gemm gemm;
@@ -642,6 +632,195 @@ void CutlassFpAIntBGemmRunner<T, WeightType>::gemm_bias_act_residual(
     std::string err_msg = "Failed to run cutlass fpA_intB gemm. Error: " +
                           std::string(cutlassGetStatusString(run_status));
     throw std::runtime_error("[FT Error][fpA_intB Runner] " + err_msg);
+  }
+}
+
+template <typename T, typename WeightType, typename Arch, typename EpilogueOp,
+          int stages>
+void dispatch_gemm_residual(CutlassTileConfig tile_config, const T *A,
+                            const WeightType *B, const T *weight_scales,
+                            const T *biases, const T *residual, T *C, int m,
+                            int n, int k, char *workspace_ptr,
+                            const size_t workspace_bytes, cudaStream_t stream) {
+  if (tile_config == CutlassTileConfig::CtaShape32x128x64_WarpShape32x32x64) {
+    dispatch_gemm_residual<
+        T, WeightType, Arch, cutlass::gemm::GemmShape<32, 128, 64>,
+        cutlass::gemm::GemmShape<32, 32, 64>, EpilogueOp, stages>(
+        A, B, weight_scales, biases, residual, C, m, n, k, workspace_ptr,
+        workspace_bytes, stream);
+  } else if (tile_config ==
+             CutlassTileConfig::CtaShape64x128x64_WarpShape64x32x64) {
+    dispatch_gemm_residual<
+        T, WeightType, Arch, cutlass::gemm::GemmShape<64, 128, 64>,
+        cutlass::gemm::GemmShape<64, 32, 64>, EpilogueOp, stages>(
+        A, B, weight_scales, biases, residual, C, m, n, k, workspace_ptr,
+        workspace_bytes, stream);
+  } else { // CutlassTileConfig::CtaShape128x128x64_WarpShape128x32x64:
+    dispatch_gemm_residual<
+        T, WeightType, Arch, cutlass::gemm::GemmShape<128, 128, 64>,
+        cutlass::gemm::GemmShape<128, 32, 64>, EpilogueOp, stages>(
+        A, B, weight_scales, biases, residual, C, m, n, k, workspace_ptr,
+        workspace_bytes, stream);
+  }
+}
+
+template <typename T, typename WeightType, typename Arch, typename EpilogueOp>
+void dispatch_gemm_residual(CutlassGemmConfig config, const T *A,
+                            const WeightType *B, const T *weight_scales,
+                            const T *biases, const T *residual, T *C, int m,
+                            int n, int k, char *workspace_ptr,
+                            const size_t workspace_bytes, cudaStream_t stream) {
+  if constexpr (std::is_same<Arch, cutlass::arch::Sm75>::value) {
+    dispatch_gemm_residual<T, WeightType, cutlass::arch::Sm75, EpilogueOp, 2>(
+        config.tile_config, A, B, weight_scales, biases, residual, C, m, n, k,
+        workspace_ptr, workspace_bytes, stream);
+
+  } else {
+    if (config.stages == 3) {
+      dispatch_gemm_residual<T, WeightType, Arch, EpilogueOp, 3>(
+          config.tile_config, A, B, weight_scales, biases, residual, C, m, n, k,
+          workspace_ptr, workspace_bytes, stream);
+    } else if (config.stages == 4) {
+      dispatch_gemm_residual<T, WeightType, Arch, EpilogueOp, 3>(
+          config.tile_config, A, B, weight_scales, biases, residual, C, m, n, k,
+          workspace_ptr, workspace_bytes, stream);
+    } else { // 2
+      dispatch_gemm_residual<T, WeightType, Arch, EpilogueOp, 2>(
+          config.tile_config, A, B, weight_scales, biases, residual, C, m, n, k,
+          workspace_ptr, workspace_bytes, stream);
+    }
+  }
+}
+
+template <typename T, typename WeightType, typename Arch,
+          template <typename T_> class ActivationOp,
+          template <typename T_> class BinaryOp>
+inline void
+dispatch_gemm_residual(CutlassGemmConfig config, const T *A,
+                       const WeightType *B, const T *weight_scales,
+                       const T *biases, const T *residual, T *C, int m, int n,
+                       int k, const std::string &unary_op, char *workspace_ptr,
+                       const size_t workspace_bytes, cudaStream_t stream) {
+  using ElementOutput = T;
+  using MixedGemmArchTraits =
+      cutlass::gemm::kernel::MixedGemmArchTraits<T, WeightType, Arch>;
+  using ElementAccumulator = typename MixedGemmArchTraits::AccType;
+
+  if (unary_op == "identity") {
+    using EpilogueOp =
+        cutlass::epilogue::thread::LinearCombinationResidualBlock<
+            ElementOutput, ElementAccumulator, ElementAccumulator,
+            ElementOutput, 128 / cutlass::sizeof_bits<ElementOutput>::value,
+            ActivationOp, BinaryOp, cutlass::epilogue::thread::Identity>;
+    dispatch_gemm_residual<T, WeightType, Arch, EpilogueOp>(
+        config, A, B, weight_scales, biases, residual, C, m, n, k,
+        workspace_ptr, workspace_bytes, stream);
+  } else if (unary_op == "relu") {
+    using EpilogueOp =
+        cutlass::epilogue::thread::LinearCombinationResidualBlock<
+            ElementOutput, ElementAccumulator, ElementAccumulator,
+            ElementOutput, 128 / cutlass::sizeof_bits<ElementOutput>::value,
+            ActivationOp, BinaryOp, cutlass::epilogue::thread::ReLu>;
+    dispatch_gemm_residual<T, WeightType, Arch, EpilogueOp>(
+        config, A, B, weight_scales, biases, residual, C, m, n, k,
+        workspace_ptr, workspace_bytes, stream);
+  } else {
+    throw std::runtime_error(
+        "[FT Error][Unsupported unary op after residual block] " + unary_op);
+  }
+}
+
+template <typename T, typename WeightType, typename Arch,
+          template <typename T_> class ActivationOp>
+void dispatch_gemm_residual(CutlassGemmConfig config, const T *A,
+                            const WeightType *B, const T *weight_scales,
+                            const T *biases, const T *residual, T *C, int m,
+                            int n, int k, const std::string &binary_op,
+                            const std::string &unary_op, char *workspace_ptr,
+                            const size_t workspace_bytes, cudaStream_t stream) {
+  if (binary_op == "plus") {
+    dispatch_gemm_residual<T, WeightType, Arch, ActivationOp, cutlass::plus>(
+        config, A, B, weight_scales, biases, residual, C, m, n, k, unary_op,
+        workspace_ptr, workspace_bytes, stream);
+  } else if (binary_op == "multiply") {
+    dispatch_gemm_residual<T, WeightType, Arch, ActivationOp,
+                           cutlass::multiplies>(
+        config, A, B, weight_scales, biases, residual, C, m, n, k, unary_op,
+        workspace_ptr, workspace_bytes, stream);
+  } else {
+    throw std::runtime_error(
+        "[FT Error][Unsupported binary op for residual block] " + binary_op);
+  }
+}
+
+template <typename T, typename WeightType, typename Arch>
+void dispatch_gemm_residual(CutlassGemmConfig config, const T *A,
+                            const WeightType *B, const T *weight_scales,
+                            const T *biases, const T *residual, T *C, int m,
+                            int n, int k, const std::string &activation,
+                            const std::string &binary_op,
+                            const std::string &unary_op, char *workspace_ptr,
+                            const size_t workspace_bytes, cudaStream_t stream) {
+  if (activation == "identity") {
+    dispatch_gemm_residual<T, WeightType, Arch,
+                           cutlass::epilogue::thread::Identity>(
+        config, A, B, weight_scales, biases, residual, C, m, n, k, binary_op,
+        unary_op, workspace_ptr, workspace_bytes, stream);
+  } else if ("silu") {
+    dispatch_gemm_residual<T, WeightType, Arch,
+                           cutlass::epilogue::thread::SiLu>(
+        config, A, B, weight_scales, biases, residual, C, m, n, k, binary_op,
+        unary_op, workspace_ptr, workspace_bytes, stream);
+  } else if ("relu") {
+    dispatch_gemm_residual<T, WeightType, Arch,
+                           cutlass::epilogue::thread::ReLu>(
+        config, A, B, weight_scales, biases, residual, C, m, n, k, binary_op,
+        unary_op, workspace_ptr, workspace_bytes, stream);
+  } else if ("gelu") {
+    dispatch_gemm_residual<T, WeightType, Arch,
+                           cutlass::epilogue::thread::GELU>(
+        config, A, B, weight_scales, biases, residual, C, m, n, k, binary_op,
+        unary_op, workspace_ptr, workspace_bytes, stream);
+  } else {
+    throw std::runtime_error(
+        "[FT Error][Unsupported activation before residual binary op] " +
+        activation);
+  }
+}
+
+template <typename T, typename WeightType>
+void CutlassFpAIntBGemmRunner<T, WeightType>::gemm_bias_act_residual(
+    const T *A, const WeightType *B, const T *weight_scales, const T *biases,
+    const T *residual, T *C, int m, int n, int k, const std::string &activation,
+    const std::string &binary_op, const std::string &unary_op,
+    char *workspace_ptr, const size_t workspace_bytes, cudaStream_t stream) {
+
+  std::vector<CutlassGemmConfig> candidate_configs =
+      get_candidate_configs(sm_, true, false);
+  std::vector<int> occupancies(candidate_configs.size());
+
+  for (size_t ii = 0; ii < candidate_configs.size(); ++ii) {
+    dispatch_to_arch<EpilogueOpNoBias>(
+        A, B, weight_scales, biases, C, m, n, k, candidate_configs[ii],
+        workspace_ptr, workspace_bytes, stream, &occupancies[ii]);
+  }
+
+  CutlassGemmConfig chosen_config = estimate_best_config_from_occupancies(
+      candidate_configs, occupancies, m, n, k, 1, split_k_limit,
+      workspace_bytes, multi_processor_count_, true);
+
+  if (sm_ >= 80 && sm_ < 90) {
+    dispatch_gemm_residual<T, WeightType, cutlass::arch::Sm80>(
+        chosen_config, A, B, weight_scales, biases, residual, C, m, n, k,
+        activation, binary_op, unary_op, workspace_ptr, workspace_bytes,
+        stream);
+  } else if (sm_ >= 75 && sm_ < 80) {
+    dispatch_gemm_residual<T, WeightType, cutlass::arch::Sm75>(
+        chosen_config, A, B, weight_scales, biases, residual, C, m, n, k,
+        activation, binary_op, unary_op, workspace_ptr, workspace_bytes,
+        stream);
+  } else {
+    throw std::runtime_error("[FT Error][Unsupported SM] " + sm_);
   }
 }
 

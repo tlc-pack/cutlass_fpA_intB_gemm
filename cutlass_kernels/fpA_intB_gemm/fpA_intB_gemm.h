@@ -67,7 +67,8 @@ public:
     void gemm_bias_act_residual(const T *A, const WeightType *B,
                                 const T *weight_scales, const T *biases,
                                 const T *residual, T *C, int m, int n, int k,
-                                ActivationType activation_type,
+				const std::string& activation, const std::string& binary_op,
+				const std::string& unary_op,
                                 char *workspace_ptr,
                                 const size_t workspace_bytes,
                                 cudaStream_t stream);
