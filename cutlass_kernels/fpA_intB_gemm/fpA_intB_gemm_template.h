@@ -612,7 +612,7 @@ void CutlassFpAIntBGemmRunner<T, WeightType>::gemm_bias_act_residual(
   typename Gemm::Arguments args(
       {m, n, k},
       batch_count,
-      {ElementAccumulator(1.f), ElementAccumulator(0.f)},
+      {ElementAccumulator(1.f), ElementAccumulator(1.f)},
       A, B, weight_scales, residual, C, biases,
       nullptr, 0, 0, 0, 0, 0, 0, lda, ldb, ldc, ldc, 0, 0);
 
