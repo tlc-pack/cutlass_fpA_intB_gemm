@@ -320,19 +320,19 @@ struct GemmFpAIntBWithBroadcast {
       int thread_idx = threadIdx.x;
 
       // Construct iterators to A and B operands
-      // typename Mma::IteratorA iterator_A(
-      //     params.params_A, params.ptr_A,
-      //     {params.problem_size.m(), problem_size_k}, thread_idx, tb_offset_A,
-      //     params.gather_A_indices);
+      typename Mma::IteratorA iterator_A(
+          params.params_A, static_cast<ElementA *>(params.ptr_A),
+          {params.problem_size.m(), problem_size_k}, thread_idx, tb_offset_A,
+          params.gather_A_indices);
 
-      // typename Mma::IteratorB iterator_B(
-      //     params.params_B, params.ptr_B,
-      //     {problem_size_k * kInterleave, params.problem_size.n() / kInterleave},
-      //     thread_idx, tb_offset_B, params.gather_B_indices);
+      typename Mma::IteratorB iterator_B(
+          params.params_B, static_cast<ElementB *>(params.ptr_B),
+          {problem_size_k * kInterleave, params.problem_size.n() / kInterleave},
+          thread_idx, tb_offset_B, params.gather_B_indices);
 
-      // typename Mma::IteratorScale iterator_scale(
-      //     params.params_scale, params.ref_scale.data(),
-      //     {1, params.problem_size.n()}, thread_idx, tb_offset_scale);
+      typename Mma::IteratorScale iterator_scale(
+          params.params_scale, static_cast<ElementScale *>(params.ptr_scales),
+          {1, params.problem_size.n()}, thread_idx, tb_offset_scale);
 
       // Broadcast the warp_id computed by lane 0 to ensure dependent code is
       // compiled as warp-uniform.
@@ -349,11 +349,11 @@ struct GemmFpAIntBWithBroadcast {
 
       accumulators.clear();
 
-      // if (gemm_k_iterations > 0) {
-      //   // Compute threadblock-scoped matrix multiply-add
-      //   mma(gemm_k_iterations, accumulators, iterator_A, iterator_B,
-      //       iterator_scale, accumulators);
-      // }
+      if (gemm_k_iterations > 0) {
+        // Compute threadblock-scoped matrix multiply-add
+        mma(gemm_k_iterations, accumulators, iterator_A, iterator_B,
+            iterator_scale, accumulators);
+      }
 
       //
       // Epilogue
@@ -376,18 +376,18 @@ struct GemmFpAIntBWithBroadcast {
       int block_idx = threadblock_tile_offset.m() +
                       threadblock_tile_offset.n() * params.grid_tiled_shape.m();
 
-      // // Tile iterator loading from source tensor.
-      // typename Epilogue::OutputTileIterator iterator_C(
-      //     params.params_C, params.ref_C.data(), params.problem_size.mn(),
-      //     thread_idx, threadblock_offset, params.scatter_D_indices);
-
-      // // Tile iterator writing to destination tensor.
-      // typename Epilogue::OutputTileIterator iterator_D(
-      //     params.params_D, params.ref_D.data(), params.problem_size.mn(),
-      //     thread_idx, threadblock_offset, params.scatter_D_indices);
-
       ElementC *ptr_C = static_cast<ElementC *>(params.ptr_C);
       ElementC *ptr_D = static_cast<ElementC *>(params.ptr_D);
+
+      // Tile iterator loading from source tensor.
+      typename Epilogue::OutputTileIterator iterator_C(
+          params.params_C, ptr_C, params.problem_size.mn(),
+          thread_idx, threadblock_offset, params.scatter_D_indices);
+
+      // Tile iterator writing to destination tensor.
+      typename Epilogue::OutputTileIterator iterator_D(
+          params.params_D, ptr_D, params.problem_size.mn(),
+          thread_idx, threadblock_offset, params.scatter_D_indices);
 
       typename Epilogue::ElementTensor *ptr_Tensor =
           static_cast<typename Epilogue::ElementTensor *>(params.ptr_Tensor);
