@@ -112,8 +112,8 @@ struct GemmFpAIntBWithBroadcast {
     void const *ptr_C;
     void *ptr_D;
 
-    void *ptr_Vector;
-    void *ptr_Tensor;
+    void const *ptr_Vector;
+    void const *ptr_Tensor;
 
     int64_t batch_stride_A;
     int64_t batch_stride_B;
@@ -122,12 +122,7 @@ struct GemmFpAIntBWithBroadcast {
     int64_t batch_stride_Vector;
     int64_t batch_stride_Tensor;
 
-    typename LayoutA::Stride::Index lda;
-    typename LayoutB::Stride::Index ldb;
-    typename LayoutC::Stride::Index ldc;
-    typename LayoutC::Stride::Index ldd;
-    typename LayoutC::Stride::Index ldr;
-    typename LayoutC::Stride::Index ldt;
+    int lda, ldb, ldc, ldd, ldr, ldt;
 
     typename EpilogueOutputOp::Params output_op;
 
@@ -143,16 +138,11 @@ struct GemmFpAIntBWithBroadcast {
     Arguments(cutlass::gemm::GemmCoord const &problem_size, int batch_count,
               typename EpilogueOutputOp::Params epilogue, void const *ptr_A,
               void const *ptr_B, void const *ptr_scales, void const *ptr_C,
-              void *ptr_D, void *ptr_Vector, void *ptr_Tensor,
+              void *ptr_D, const void *ptr_Vector, const void *ptr_Tensor,
               int64_t batch_stride_A, int64_t batch_stride_B,
               int64_t batch_stride_C, int64_t batch_stride_D,
               int64_t batch_stride_Vector, int64_t batch_stride_Tensor,
-              typename LayoutA::Stride::Index lda,
-              typename LayoutB::Stride::Index ldb,
-              typename LayoutC::Stride::Index ldc,
-              typename LayoutC::Stride::Index ldd,
-              typename LayoutC::Stride::Index ldr,
-              typename LayoutC::Stride::Index ldt,
+	      int lda, int ldb, int ldc, int ldd, int ldr, int ldt,
               typename EpilogueOutputOp::Params output_op =
                   typename EpilogueOutputOp::Params())
         : problem_size(problem_size), batch_count(batch_count),
@@ -229,8 +219,8 @@ struct GemmFpAIntBWithBroadcast {
           ptr_B(const_cast<void *>(args.ptr_B)),
           ptr_scales(const_cast<void *>(args.ptr_scales)),
           ptr_C(const_cast<void *>(args.ptr_C)), ptr_D(args.ptr_D),
-          ptr_Vector(args.ptr_Vector), ldr(args.ldr),
-          ptr_Tensor(args.ptr_Tensor), batch_stride_A(args.batch_stride_A),
+          ptr_Vector(const_cast<void *>(args.ptr_Vector)), ldr(args.ldr),
+          ptr_Tensor(const_cast<void *>(args.ptr_Tensor)), batch_stride_A(args.batch_stride_A),
           batch_stride_B(args.batch_stride_B),
           batch_stride_C(args.batch_stride_C),
           batch_stride_D(args.batch_stride_D),
@@ -258,54 +248,54 @@ struct GemmFpAIntBWithBroadcast {
   CUTLASS_HOST_DEVICE
   static Status can_implement(Arguments const &args) {
 
-    static int const kAlignmentA =
-        (platform::is_same<typename Mma::IteratorA::Layout,
-                           layout::ColumnMajorInterleaved<32>>::value)
-            ? 32
-        : (platform::is_same<typename Mma::IteratorA::Layout,
-                             layout::ColumnMajorInterleaved<64>>::value)
-            ? 64
-            : Mma::IteratorA::AccessType::kElements;
-    static int const kAlignmentB =
-        (platform::is_same<typename Mma::IteratorB::Layout,
-                           layout::RowMajorInterleaved<32>>::value)
-            ? 32
-        : (platform::is_same<typename Mma::IteratorB::Layout,
-                             layout::RowMajorInterleaved<64>>::value)
-            ? 64
-            : Mma::IteratorB::AccessType::kElements;
+    // static int const kAlignmentA =
+    //     (platform::is_same<typename Mma::IteratorA::Layout,
+    //                        layout::ColumnMajorInterleaved<32>>::value)
+    //         ? 32
+    //     : (platform::is_same<typename Mma::IteratorA::Layout,
+    //                          layout::ColumnMajorInterleaved<64>>::value)
+    //         ? 64
+    //         : Mma::IteratorA::AccessType::kElements;
+    // static int const kAlignmentB =
+    //     (platform::is_same<typename Mma::IteratorB::Layout,
+    //                        layout::RowMajorInterleaved<32>>::value)
+    //         ? 32
+    //     : (platform::is_same<typename Mma::IteratorB::Layout,
+    //                          layout::RowMajorInterleaved<64>>::value)
+    //         ? 64
+    //         : Mma::IteratorB::AccessType::kElements;
 
-    static int const kAlignmentScale =
-        Mma::IteratorScale::AccessType::kElements;
+    // static int const kAlignmentScale =
+    //     Mma::IteratorScale::AccessType::kElements;
 
-    static int const kAlignmentC =
-        (platform::is_same<typename Epilogue::OutputTileIterator::Layout,
-                           layout::ColumnMajorInterleaved<32>>::value)
-            ? 32
-        : (platform::is_same<typename Epilogue::OutputTileIterator::Layout,
-                             layout::ColumnMajorInterleaved<64>>::value)
-            ? 64
-            : Epilogue::OutputTileIterator::kElementsPerAccess;
+    // static int const kAlignmentC =
+    //     (platform::is_same<typename Epilogue::OutputTileIterator::Layout,
+    //                        layout::ColumnMajorInterleaved<32>>::value)
+    //         ? 32
+    //     : (platform::is_same<typename Epilogue::OutputTileIterator::Layout,
+    //                          layout::ColumnMajorInterleaved<64>>::value)
+    //         ? 64
+    //         : Epilogue::OutputTileIterator::kElementsPerAccess;
 
-    if (!TensorRef_aligned(args.ref_A, kAlignmentA)) {
-      return Status::kErrorMisalignedOperand;
-    }
+    // if (!TensorRef_aligned(args.ref_A, kAlignmentA)) {
+    //   return Status::kErrorMisalignedOperand;
+    // }
 
-    if (!TensorRef_aligned(args.ref_B, kAlignmentB)) {
-      return Status::kErrorMisalignedOperand;
-    }
+    // if (!TensorRef_aligned(args.ref_B, kAlignmentB)) {
+    //   return Status::kErrorMisalignedOperand;
+    // }
 
-    if (!TensorRef_aligned(args.ref_scale, kAlignmentScale)) {
-      return Status::kErrorMisalignedOperand;
-    }
+    // if (!TensorRef_aligned(args.ref_scale, kAlignmentScale)) {
+    //   return Status::kErrorMisalignedOperand;
+    // }
 
-    if (!TensorRef_aligned(args.ref_C, kAlignmentC)) {
-      return Status::kErrorMisalignedOperand;
-    }
+    // if (!TensorRef_aligned(args.ref_C, kAlignmentC)) {
+    //   return Status::kErrorMisalignedOperand;
+    // }
 
-    if (!TensorRef_aligned(args.ref_D, kAlignmentC)) {
-      return Status::kErrorMisalignedOperand;
-    }
+    // if (!TensorRef_aligned(args.ref_D, kAlignmentC)) {
+    //   return Status::kErrorMisalignedOperand;
+    // }
 
     return Status::kSuccess;
   }
@@ -332,145 +322,145 @@ struct GemmFpAIntBWithBroadcast {
     CUTLASS_DEVICE
     static void run_kernel(Params const &params,
                            SharedStorage &shared_storage) {
-      using LayoutB = typename Mma::IteratorB::Layout;
-      static_assert(
-          platform::is_same<LayoutB, layout::RowMajor>::value &&
-                  kInterleave == 1 ||
-              platform::is_same<LayoutB, layout::ColumnMajor>::value &&
-                  kInterleave >= 1,
-          "B must be row major/col major OR col major  interleaved.");
+      // using LayoutB = typename Mma::IteratorB::Layout;
+      // static_assert(
+      //     platform::is_same<LayoutB, layout::RowMajor>::value &&
+      //             kInterleave == 1 ||
+      //         platform::is_same<LayoutB, layout::ColumnMajor>::value &&
+      //             kInterleave >= 1,
+      //     "B must be row major/col major OR col major  interleaved.");
 
-      // Compute threadblock location
-      ThreadblockSwizzle threadblock_swizzle;
+      // // Compute threadblock location
+      // ThreadblockSwizzle threadblock_swizzle;
 
-      cutlass::gemm::GemmCoord threadblock_tile_offset =
-          threadblock_swizzle.get_tile_offset(params.swizzle_log_tile);
+      // cutlass::gemm::GemmCoord threadblock_tile_offset =
+      //     threadblock_swizzle.get_tile_offset(params.swizzle_log_tile);
 
-      // Early exit if CTA is out of range
-      if (params.grid_tiled_shape.m() <= threadblock_tile_offset.m() ||
-          params.grid_tiled_shape.n() <= threadblock_tile_offset.n()) {
+      // // Early exit if CTA is out of range
+      // if (params.grid_tiled_shape.m() <= threadblock_tile_offset.m() ||
+      //     params.grid_tiled_shape.n() <= threadblock_tile_offset.n()) {
 
-        return;
-      }
+      //   return;
+      // }
 
-      // Compute initial location in logical coordinates
-      cutlass::MatrixCoord tb_offset_A{
-          threadblock_tile_offset.m() * Mma::Shape::kM,
-          threadblock_tile_offset.k() * params.gemm_k_size,
-      };
+      // // Compute initial location in logical coordinates
+      // cutlass::MatrixCoord tb_offset_A{
+      //     threadblock_tile_offset.m() * Mma::Shape::kM,
+      //     threadblock_tile_offset.k() * params.gemm_k_size,
+      // };
 
-      cutlass::MatrixCoord tb_offset_B{
-          threadblock_tile_offset.k() * params.gemm_k_size * kInterleave,
-          threadblock_tile_offset.n() * Mma::Shape::kN / kInterleave};
+      // cutlass::MatrixCoord tb_offset_B{
+      //     threadblock_tile_offset.k() * params.gemm_k_size * kInterleave,
+      //     threadblock_tile_offset.n() * Mma::Shape::kN / kInterleave};
 
-      cutlass::MatrixCoord tb_offset_scale{0, threadblock_tile_offset.n() *
-                                                  Mma::Shape::kN};
+      // cutlass::MatrixCoord tb_offset_scale{0, threadblock_tile_offset.n() *
+      //                                             Mma::Shape::kN};
 
-      // Problem size is a function of threadblock index in the K dimension
-      int problem_size_k =
-          min(params.problem_size.k(),
-              (threadblock_tile_offset.k() + 1) * params.gemm_k_size);
+      // // Problem size is a function of threadblock index in the K dimension
+      // int problem_size_k =
+      //     min(params.problem_size.k(),
+      //         (threadblock_tile_offset.k() + 1) * params.gemm_k_size);
 
-      // Compute threadblock-scoped matrix multiply-add
-      int gemm_k_iterations =
-          (problem_size_k - tb_offset_A.column() + Mma::Shape::kK - 1) /
-          Mma::Shape::kK;
+      // // Compute threadblock-scoped matrix multiply-add
+      // int gemm_k_iterations =
+      //     (problem_size_k - tb_offset_A.column() + Mma::Shape::kK - 1) /
+      //     Mma::Shape::kK;
 
-      // Compute position within threadblock
-      int thread_idx = threadIdx.x;
+      // // Compute position within threadblock
+      // int thread_idx = threadIdx.x;
 
-      // Construct iterators to A and B operands
-      typename Mma::IteratorA iterator_A(
-          params.params_A, params.ref_A.data(),
-          {params.problem_size.m(), problem_size_k}, thread_idx, tb_offset_A,
-          params.gather_A_indices);
+      // // Construct iterators to A and B operands
+      // typename Mma::IteratorA iterator_A(
+      //     params.params_A, params.ref_A.data(),
+      //     {params.problem_size.m(), problem_size_k}, thread_idx, tb_offset_A,
+      //     params.gather_A_indices);
 
-      typename Mma::IteratorB iterator_B(
-          params.params_B, params.ref_B.data(),
-          {problem_size_k * kInterleave, params.problem_size.n() / kInterleave},
-          thread_idx, tb_offset_B, params.gather_B_indices);
+      // typename Mma::IteratorB iterator_B(
+      //     params.params_B, params.ref_B.data(),
+      //     {problem_size_k * kInterleave, params.problem_size.n() / kInterleave},
+      //     thread_idx, tb_offset_B, params.gather_B_indices);
 
-      typename Mma::IteratorScale iterator_scale(
-          params.params_scale, params.ref_scale.data(),
-          {1, params.problem_size.n()}, thread_idx, tb_offset_scale);
+      // typename Mma::IteratorScale iterator_scale(
+      //     params.params_scale, params.ref_scale.data(),
+      //     {1, params.problem_size.n()}, thread_idx, tb_offset_scale);
 
-      // Broadcast the warp_id computed by lane 0 to ensure dependent code is
-      // compiled as warp-uniform.
-      int warp_idx = __shfl_sync(0xffffffff, threadIdx.x / 32, 0);
-      int lane_idx = threadIdx.x % 32;
+      // // Broadcast the warp_id computed by lane 0 to ensure dependent code is
+      // // compiled as warp-uniform.
+      // int warp_idx = __shfl_sync(0xffffffff, threadIdx.x / 32, 0);
+      // int lane_idx = threadIdx.x % 32;
 
-      //
-      // Main loop
-      //
-      // Construct thread-scoped matrix multiply
-      Mma mma(shared_storage.main_loop, thread_idx, warp_idx, lane_idx);
+      // //
+      // // Main loop
+      // //
+      // // Construct thread-scoped matrix multiply
+      // Mma mma(shared_storage.main_loop, thread_idx, warp_idx, lane_idx);
 
-      typename Mma::FragmentC accumulators;
+      // typename Mma::FragmentC accumulators;
 
-      accumulators.clear();
+      // accumulators.clear();
 
-      if (gemm_k_iterations > 0) {
-        // Compute threadblock-scoped matrix multiply-add
-        mma(gemm_k_iterations, accumulators, iterator_A, iterator_B,
-            iterator_scale, accumulators);
-      }
+      // if (gemm_k_iterations > 0) {
+      //   // Compute threadblock-scoped matrix multiply-add
+      //   mma(gemm_k_iterations, accumulators, iterator_A, iterator_B,
+      //       iterator_scale, accumulators);
+      // }
 
-      //
-      // Epilogue
-      //
+      // //
+      // // Epilogue
+      // //
 
-      EpilogueOutputOp output_op(params.output_op);
+      // EpilogueOutputOp output_op(params.output_op);
 
-      //
-      // Masked tile iterators constructed from members
-      //
+      // //
+      // // Masked tile iterators constructed from members
+      // //
 
-      threadblock_tile_offset =
-          threadblock_swizzle.get_tile_offset(params.swizzle_log_tile);
+      // threadblock_tile_offset =
+      //     threadblock_swizzle.get_tile_offset(params.swizzle_log_tile);
 
-      // assume identity swizzle
-      MatrixCoord threadblock_offset(
-          threadblock_tile_offset.m() * Mma::Shape::kM,
-          threadblock_tile_offset.n() * Mma::Shape::kN);
+      // // assume identity swizzle
+      // MatrixCoord threadblock_offset(
+      //     threadblock_tile_offset.m() * Mma::Shape::kM,
+      //     threadblock_tile_offset.n() * Mma::Shape::kN);
 
-      int block_idx = threadblock_tile_offset.m() +
-                      threadblock_tile_offset.n() * params.grid_tiled_shape.m();
+      // int block_idx = threadblock_tile_offset.m() +
+      //                 threadblock_tile_offset.n() * params.grid_tiled_shape.m();
 
-      // Tile iterator loading from source tensor.
-      typename Epilogue::OutputTileIterator iterator_C(
-          params.params_C, params.ref_C.data(), params.problem_size.mn(),
-          thread_idx, threadblock_offset, params.scatter_D_indices);
+      // // Tile iterator loading from source tensor.
+      // typename Epilogue::OutputTileIterator iterator_C(
+      //     params.params_C, params.ref_C.data(), params.problem_size.mn(),
+      //     thread_idx, threadblock_offset, params.scatter_D_indices);
 
-      // Tile iterator writing to destination tensor.
-      typename Epilogue::OutputTileIterator iterator_D(
-          params.params_D, params.ref_D.data(), params.problem_size.mn(),
-          thread_idx, threadblock_offset, params.scatter_D_indices);
+      // // Tile iterator writing to destination tensor.
+      // typename Epilogue::OutputTileIterator iterator_D(
+      //     params.params_D, params.ref_D.data(), params.problem_size.mn(),
+      //     thread_idx, threadblock_offset, params.scatter_D_indices);
 
-      ElementC *ptr_C = static_cast<ElementC *>(params.ptr_C);
-      ElementC *ptr_D = static_cast<ElementC *>(params.ptr_D);
+      // ElementC *ptr_C = static_cast<ElementC *>(params.ptr_C);
+      // ElementC *ptr_D = static_cast<ElementC *>(params.ptr_D);
 
-      typename Epilogue::ElementTensor *ptr_Tensor =
-          static_cast<typename Epilogue::ElementTensor *>(params.ptr_Tensor);
+      // typename Epilogue::ElementTensor *ptr_Tensor =
+      //     static_cast<typename Epilogue::ElementTensor *>(params.ptr_Tensor);
 
-      // Define the reduction output pointer and move to the appropriate place
-      typename Epilogue::ElementVector *ptr_Vector =
-          static_cast<typename Epilogue::ElementVector *>(params.ptr_Vector);
+      // // Define the reduction output pointer and move to the appropriate place
+      // typename Epilogue::ElementVector *ptr_Vector =
+      //     static_cast<typename Epilogue::ElementVector *>(params.ptr_Vector);
 
-      typename Epilogue::TensorTileIterator tensor_iterator(
-          params.params_Tensor,
-          // Only the final block outputs Tensor
-          ptr_Tensor, params.problem_size.mn(), thread_idx, threadblock_offset);
+      // typename Epilogue::TensorTileIterator tensor_iterator(
+      //     params.params_Tensor,
+      //     // Only the final block outputs Tensor
+      //     ptr_Tensor, params.problem_size.mn(), thread_idx, threadblock_offset);
 
-      Epilogue epilogue(shared_storage.epilogue, thread_idx, warp_idx,
-                        lane_idx);
+      // Epilogue epilogue(shared_storage.epilogue, thread_idx, warp_idx,
+      //                   lane_idx);
 
-      if (ptr_Vector) {
-        ptr_Vector += threadblock_offset.column() +
-                      threadblock_tile_offset.m() * params.ldr;
-      }
+      // if (ptr_Vector) {
+      //   ptr_Vector += threadblock_offset.column() +
+      //                 threadblock_tile_offset.m() * params.ldr;
+      // }
 
-      epilogue(output_op, ptr_Vector, iterator_D, accumulators, iterator_C,
-               tensor_iterator, params.problem_size.mn(), threadblock_offset);
+      // epilogue(output_op, ptr_Vector, iterator_D, accumulators, iterator_C,
+      //          tensor_iterator, params.problem_size.mn(), threadblock_offset);
     }
   };
 
