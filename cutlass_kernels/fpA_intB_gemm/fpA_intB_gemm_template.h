@@ -565,7 +565,7 @@ void CutlassFpAIntBGemmRunner<T, WeightType>::gemm_bias_act_residual(
   using ElementAccumulator = typename MixedGemmArchTraits::AccType;
 
   using EpilogueOp = cutlass::epilogue::thread::LinearCombinationResidualBlock<
-      ElementOutput, ElementAccumulator, ElementAccumulator, ElementAccumulator,
+      ElementOutput, ElementAccumulator, ElementAccumulator, ElementOutput,
       128 / cutlass::sizeof_bits<ElementOutput>::value,
       cutlass::epilogue::thread::Identity, cutlass::plus,
       cutlass::epilogue::thread::Identity>;

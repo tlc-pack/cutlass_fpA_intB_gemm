@@ -409,8 +409,8 @@ struct GemmFpAIntBWithBroadcast {
                       threadblock_tile_offset.m() * params.ldr;
       }
 
-      // epilogue(output_op, ptr_Vector, iterator_D, accumulators, iterator_C,
-      //          tensor_iterator, params.problem_size.mn(), threadblock_offset);
+      epilogue(output_op, ptr_Vector, iterator_D, accumulators, iterator_C,
+               tensor_iterator, params.problem_size.mn(), threadblock_offset);
     }
   };
 
