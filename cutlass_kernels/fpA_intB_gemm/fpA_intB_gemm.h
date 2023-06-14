@@ -64,6 +64,15 @@ public:
                        const size_t      workspace_bytes,
                        cudaStream_t      stream);
 
+    void gemm_bias_act_residual(const T *A, const WeightType *B,
+                                const T *weight_scales, const T *biases,
+                                const T *residual, T *C, int m, int n, int k,
+				const std::string& activation, const std::string& binary_op,
+				const std::string& unary_op,
+                                char *workspace_ptr,
+                                const size_t workspace_bytes,
+                                cudaStream_t stream);
+
     // Returns desired workspace size in bytes.
     int getWorkspaceSize(const int m, const int n, const int k);
 

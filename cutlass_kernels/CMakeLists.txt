@@ -22,4 +22,4 @@ link_directories(${CUDA_TOOLKIT_ROOT_DIR}/lib64)
 
 set(CMAKE_CUDA_FLAGS "${CMAKE_CUDA_FLAGS} -gencode arch=compute_80,code=sm_80")
 
-add_library(fpA_intB_gemm SHARED fpA_intB_gemm/fpA_intB_gemm_fp16_int4.cu fpA_intB_gemm/fpA_intB_gemm_fp16_int8.cu fpA_intB_gemm.cu cutlass_heuristic.cc cutlass_preprocessors.cc ${CMAKE_CURRENT_SOURCE_DIR}/../utils/logger.cc ${CMAKE_CURRENT_SOURCE_DIR}/../utils/cuda_utils.cc)
+add_library(fpA_intB_gemm SHARED fpA_intB_gemm.cu cutlass_heuristic.cc cutlass_preprocessors.cc ${CMAKE_CURRENT_SOURCE_DIR}/../utils/logger.cc ${CMAKE_CURRENT_SOURCE_DIR}/../utils/cuda_utils.cc)

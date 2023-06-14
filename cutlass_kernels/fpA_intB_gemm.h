@@ -1,5 +1,6 @@
 #pragma once
 
+#include <string>
 #include <cuda_runtime.h>
 #include "cutlass/numeric_types.h"
 #include "cutlass/half.h"
@@ -23,7 +24,17 @@ void gemm_fp16_int4(const half *A, const uint4b_t *B, const half *weight_scales,
 void gemm_fp16_int4_bias(const half *A, const uint4b_t *B,
                          const half *weight_scales, const half *biases, half *C,
                          int m, int n, int k, char *workspace_ptr,
-                         size_t workspace_bytes,
-                         cudaStream_t stream);
+                         size_t workspace_bytes, cudaStream_t stream);
+
+void gemm_fp16_int4_bias_act(const half *A, const uint4b_t *B,
+                             const half *weight_scales, const half *biases,
+                             half *C, const std::string& activation, int m,
+                             int n, int k, char *workspace_ptr,
+                             size_t workspace_bytes, cudaStream_t stream);
+
+void gemm_fp16_int4_bias_act_residual(
+    const half *A, const uint4b_t *B, const half *weight_scales,
+    const half *biases, const half *residual, half *C, const std::string& activation, const std::string& binary_op,
+    const std::string& unary_op, int m, int n, int k, char *workspace_ptr, size_t workspace_bytes, cudaStream_t stream);
 
 } // namespace fastertransformer
