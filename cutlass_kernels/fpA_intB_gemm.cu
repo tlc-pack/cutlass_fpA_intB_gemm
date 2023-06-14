@@ -21,7 +21,7 @@ ActivationType get_activation(const std::string& activation_name) {
   if (activation_name == "relu") return ActivationType::Relu;
   if (activation_name == "silu") return ActivationType::Silu;
   // todo: more
-  return ActivationType::Identity;
+  return ActivationType::InvalidType;
 }
 
 void gemm_fp16_int4_bias_act(const half*  A,

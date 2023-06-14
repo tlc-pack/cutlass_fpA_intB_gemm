@@ -681,7 +681,7 @@ void dispatch_gemm_residual(CutlassGemmConfig config, const T *A,
           config.tile_config, A, B, weight_scales, biases, residual, C, m, n, k,
           workspace_ptr, workspace_bytes, stream);
     } else if (config.stages == 4) {
-      dispatch_gemm_residual<T, WeightType, Arch, EpilogueOp, 3>(
+      dispatch_gemm_residual<T, WeightType, Arch, EpilogueOp, 4>(
           config.tile_config, A, B, weight_scales, biases, residual, C, m, n, k,
           workspace_ptr, workspace_bytes, stream);
     } else { // 2
