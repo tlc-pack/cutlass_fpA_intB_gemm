@@ -416,7 +416,10 @@ void CutlassFpAIntBGemmRunner<T, WeightType>::dispatch_to_arch<EpilogueTag>(cons
                                                                             int*              occupancy)
 {
     FT_LOG_DEBUG(__PRETTY_FUNCTION__);
-    if (sm_ >= 75 && sm_ < 80) {
+    if (sm_ >= 70 && sm_ < 75) {
+        dispatch_gemm_to_cutlass<T, WeightType, cutlass::arch::Sm70, EpilogueTag>(
+            A, B, weight_scales, biases, C, m, n, k, workspace_ptr, workspace_bytes, gemm_config, stream, occupancy);
+    } else if (sm_ >= 75 && sm_ < 80) {
         dispatch_gemm_to_cutlass<T, WeightType, cutlass::arch::Sm75, EpilogueTag>(
             A, B, weight_scales, biases, C, m, n, k, workspace_ptr, workspace_bytes, gemm_config, stream, occupancy);
     } else if (sm_ >= 80 && sm_ < 90) {
@@ -674,7 +677,10 @@ void dispatch_gemm_residual(CutlassGemmConfig config, const T *A,
     dispatch_gemm_residual<T, WeightType, cutlass::arch::Sm75, EpilogueOp, 2>(
         config.tile_config, A, B, weight_scales, biases, residual, C, m, n, k,
         workspace_ptr, workspace_bytes, stream);
-
+  } else if constexpr (std::is_same<Arch, cutlass::arch::Sm70>::value) {
+    dispatch_gemm_residual<T, WeightType, cutlass::arch::Sm70, EpilogueOp, 2>(
+        config.tile_config, A, B, weight_scales, biases, residual, C, m, n, k,
+        workspace_ptr, workspace_bytes, stream);
   } else {
     if (config.stages == 3) {
       dispatch_gemm_residual<T, WeightType, Arch, EpilogueOp, 3>(
@@ -816,6 +822,11 @@ void CutlassFpAIntBGemmRunner<T, WeightType>::gemm_bias_act_residual(
         stream);
   } else if (sm_ >= 75 && sm_ < 80) {
     dispatch_gemm_residual<T, WeightType, cutlass::arch::Sm75>(
+        chosen_config, A, B, weight_scales, biases, residual, C, m, n, k,
+        activation, binary_op, unary_op, workspace_ptr, workspace_bytes,
+        stream);
+  } else if (sm_ == 70) {
+    dispatch_gemm_residual<T, WeightType, cutlass::arch::Sm70>(
         chosen_config, A, B, weight_scales, biases, residual, C, m, n, k,
         activation, binary_op, unary_op, workspace_ptr, workspace_bytes,
         stream);
