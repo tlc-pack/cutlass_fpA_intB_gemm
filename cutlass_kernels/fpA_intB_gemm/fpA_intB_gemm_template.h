@@ -53,6 +53,7 @@ void generic_mixed_gemm_kernelLauncher(const T*          A,
                                        int               m,
                                        int               n,
                                        int               k,
+				       int bias_stride,
                                        CutlassGemmConfig gemm_config,
                                        char*             workspace,
                                        size_t            workspace_bytes,
@@ -129,7 +130,7 @@ void generic_mixed_gemm_kernelLauncher(const T*          A,
                                   {reinterpret_cast<CutlassWeightType*>(const_cast<WeightType*>(B)), ldb},
                                   {reinterpret_cast<ElementType*>(const_cast<T*>(weight_scales)), 0},
 				  // TODO: Support more general bias shape
-                                  {reinterpret_cast<ElementType*>(const_cast<T*>(biases)), 0},
+                                  {reinterpret_cast<ElementType*>(const_cast<T*>(biases)), bias_stride},
                                   {reinterpret_cast<ElementType*>(C), n},
                                   gemm_config.split_k_factor,
                                   {ElementAccumulator(1.f), ElementAccumulator(0.f)});
@@ -191,6 +192,7 @@ struct dispatch_stages {
                          int               m,
                          int               n,
                          int               k,
+			 int bias_stride,
                          CutlassGemmConfig gemm_config,
                          char*             workspace,
                          size_t            workspace_bytes,
@@ -221,6 +223,7 @@ struct dispatch_stages<T, WeightType, arch, EpilogueTag, ThreadblockShape, WarpS
                          int               m,
                          int               n,
                          int               k,
+			 int bias_stride,
                          CutlassGemmConfig gemm_config,
                          char*             workspace,
                          size_t            workspace_bytes,
@@ -230,7 +233,7 @@ struct dispatch_stages<T, WeightType, arch, EpilogueTag, ThreadblockShape, WarpS
 
         FT_LOG_DEBUG(__PRETTY_FUNCTION__);
         generic_mixed_gemm_kernelLauncher<T, WeightType, arch, EpilogueTag, ThreadblockShape, WarpShape, 2>(
-            A, B, weight_scales, biases, C, m, n, k, gemm_config, workspace, workspace_bytes, stream, occupancy);
+													    A, B, weight_scales, biases, C, m, n, k, bias_stride, gemm_config, workspace, workspace_bytes, stream, occupancy);
     }
 };
 
@@ -256,6 +259,7 @@ struct dispatch_stages<T,
                          int               m,
                          int               n,
                          int               k,
+			 int bias_stride,
                          CutlassGemmConfig gemm_config,
                          char*             workspace,
                          size_t            workspace_bytes,
@@ -271,7 +275,7 @@ struct dispatch_stages<T,
                                           ThreadblockShape,
                                           WarpShape,
                                           Stages>(
-            A, B, weight_scales, biases, C, m, n, k, gemm_config, workspace, workspace_bytes, stream, occupancy);
+	  A, B, weight_scales, biases, C, m, n, k, bias_stride, gemm_config, workspace, workspace_bytes, stream, occupancy);
     }
 };
 
@@ -289,6 +293,7 @@ void dispatch_gemm_config(const T*          A,
                           int               m,
                           int               n,
                           int               k,
+   			  int bias_stride,
                           CutlassGemmConfig gemm_config,
                           char*             workspace,
                           size_t            workspace_bytes,
@@ -301,17 +306,17 @@ void dispatch_gemm_config(const T*          A,
         case 2:
             using DispatcherStages2 = dispatch_stages<T, WeightType, arch, EpilogueTag, ThreadblockShape, WarpShape, 2>;
             DispatcherStages2::dispatch(
-                A, B, weight_scales, biases, C, m, n, k, gemm_config, workspace, workspace_bytes, stream, occupancy);
+   	        A, B, weight_scales, biases, C, m, n, k, bias_stride, gemm_config, workspace, workspace_bytes, stream, occupancy);
             break;
         case 3:
             using DispatcherStages3 = dispatch_stages<T, WeightType, arch, EpilogueTag, ThreadblockShape, WarpShape, 3>;
             DispatcherStages3::dispatch(
-                A, B, weight_scales, biases, C, m, n, k, gemm_config, workspace, workspace_bytes, stream, occupancy);
+   	        A, B, weight_scales, biases, C, m, n, k, bias_stride, gemm_config, workspace, workspace_bytes, stream, occupancy);
             break;
         case 4:
             using DispatcherStages4 = dispatch_stages<T, WeightType, arch, EpilogueTag, ThreadblockShape, WarpShape, 4>;
             DispatcherStages4::dispatch(
-                A, B, weight_scales, biases, C, m, n, k, gemm_config, workspace, workspace_bytes, stream, occupancy);
+	        A, B, weight_scales, biases, C, m, n, k, bias_stride, gemm_config, workspace, workspace_bytes, stream, occupancy);
             break;
         default:
             std::string err_msg = "dispatch_gemm_config does not support stages " + std::to_string(gemm_config.stages);
@@ -329,6 +334,7 @@ void dispatch_gemm_to_cutlass(const T*          A,
                               int               m,
                               int               n,
                               int               k,
+               		      int bias_stride,
                               char*             workspace,
                               size_t            workspace_bytes,
                               CutlassGemmConfig gemm_config,
@@ -349,7 +355,7 @@ void dispatch_gemm_to_cutlass(const T*          A,
                                  EpilogueTag,
                                  cutlass::gemm::GemmShape<32, 128, 64>,
                                  cutlass::gemm::GemmShape<32, 32, 64>>(
-                A, B, weight_scales, biases, C, m, n, k, gemm_config, workspace, workspace_bytes, stream, occupancy);
+                A, B, weight_scales, biases, C, m, n, k, bias_stride, gemm_config, workspace, workspace_bytes, stream, occupancy);
             break;
         case CutlassTileConfig::CtaShape64x128x64_WarpShape64x32x64:
             dispatch_gemm_config<T,
@@ -358,8 +364,8 @@ void dispatch_gemm_to_cutlass(const T*          A,
                                  EpilogueTag,
                                  cutlass::gemm::GemmShape<64, 128, 64>,
                                  cutlass::gemm::GemmShape<64, 32, 64>>(
-                A, B, weight_scales, biases, C, m, n, k, gemm_config, workspace, workspace_bytes, stream, occupancy);
-            break;
+                A, B, weight_scales, biases, C, m, n, k, bias_stride, gemm_config, workspace, workspace_bytes, stream, occupancy);
+	    break;
         case CutlassTileConfig::CtaShape128x128x64_WarpShape128x32x64:
             dispatch_gemm_config<T,
                                  WeightType,
@@ -367,7 +373,7 @@ void dispatch_gemm_to_cutlass(const T*          A,
                                  EpilogueTag,
                                  cutlass::gemm::GemmShape<128, 128, 64>,
                                  cutlass::gemm::GemmShape<128, 32, 64>>(
-                A, B, weight_scales, biases, C, m, n, k, gemm_config, workspace, workspace_bytes, stream, occupancy);
+                A, B, weight_scales, biases, C, m, n, k, bias_stride, gemm_config, workspace, workspace_bytes, stream, occupancy);
             break;
         case CutlassTileConfig::Undefined:
             throw std::runtime_error("[FT Error][fpA_intB][dispatch_gemm_to_cutlass] gemm config undefined.");
@@ -409,6 +415,7 @@ void CutlassFpAIntBGemmRunner<T, WeightType>::dispatch_to_arch<EpilogueTag>(cons
                                                                             int               m,
                                                                             int               n,
                                                                             int               k,
+									    int bias_stride,
                                                                             CutlassGemmConfig gemm_config,
                                                                             char*             workspace_ptr,
                                                                             const size_t      workspace_bytes,
@@ -418,13 +425,13 @@ void CutlassFpAIntBGemmRunner<T, WeightType>::dispatch_to_arch<EpilogueTag>(cons
     FT_LOG_DEBUG(__PRETTY_FUNCTION__);
     if (sm_ >= 70 && sm_ < 75) {
         dispatch_gemm_to_cutlass<T, WeightType, cutlass::arch::Sm70, EpilogueTag>(
-            A, B, weight_scales, biases, C, m, n, k, workspace_ptr, workspace_bytes, gemm_config, stream, occupancy);
+	    A, B, weight_scales, biases, C, m, n, k, bias_stride, workspace_ptr, workspace_bytes, gemm_config, stream, occupancy);
     } else if (sm_ >= 75 && sm_ < 80) {
         dispatch_gemm_to_cutlass<T, WeightType, cutlass::arch::Sm75, EpilogueTag>(
-            A, B, weight_scales, biases, C, m, n, k, workspace_ptr, workspace_bytes, gemm_config, stream, occupancy);
+	    A, B, weight_scales, biases, C, m, n, k, bias_stride, workspace_ptr, workspace_bytes, gemm_config, stream, occupancy);
     } else if (sm_ >= 80 && sm_ < 90) {
         dispatch_gemm_to_cutlass<T, WeightType, cutlass::arch::Sm80, EpilogueTag>(
-            A, B, weight_scales, biases, C, m, n, k, workspace_ptr, workspace_bytes, gemm_config, stream, occupancy);
+	    A, B, weight_scales, biases, C, m, n, k, bias_stride, workspace_ptr, workspace_bytes, gemm_config, stream, occupancy);
     }
     else {
         throw std::runtime_error(
@@ -442,6 +449,7 @@ void CutlassFpAIntBGemmRunner<T, WeightType>::run_gemm<EpilogueTag>(const T*    
                                                                     int               m,
                                                                     int               n,
                                                                     int               k,
+								    int bias_stride,
                                                                     char*             workspace_ptr,
                                                                     const size_t      workspace_bytes,
                                                                     cudaStream_t      stream)
@@ -460,6 +468,7 @@ void CutlassFpAIntBGemmRunner<T, WeightType>::run_gemm<EpilogueTag>(const T*    
                                       m,
                                       n,
                                       k,
+				      bias_stride,
                                       candidate_configs[ii],
                                       workspace_ptr,
                                       workspace_bytes,
@@ -480,7 +489,7 @@ void CutlassFpAIntBGemmRunner<T, WeightType>::run_gemm<EpilogueTag>(const T*    
                                                                             is_weight_only);
 
     dispatch_to_arch<EpilogueTag>(
-        A, B, weight_scales, biases, C, m, n, k, chosen_config, workspace_ptr, workspace_bytes, stream);
+        A, B, weight_scales, biases, C, m, n, k, bias_stride, chosen_config, workspace_ptr, workspace_bytes, stream);
 }
 
 template<typename T, typename WeightType>
@@ -492,6 +501,7 @@ void CutlassFpAIntBGemmRunner<T, WeightType>::gemm_bias_act(const T*          A,
                                                             int               m,
                                                             int               n,
                                                             int               k,
+							    int bias_stride,
                                                             ActivationType    activation_type,
                                                             char*             workspace_ptr,
                                                             const size_t      workspace_bytes,
@@ -502,18 +512,18 @@ void CutlassFpAIntBGemmRunner<T, WeightType>::gemm_bias_act(const T*          A,
     switch (activation_type) {
         case ActivationType::Relu:
             run_gemm<EpilogueOpBiasReLU>(
-                A, B, weight_scales, biases, C, m, n, k, workspace_ptr, workspace_bytes, stream);
+   	        A, B, weight_scales, biases, C, m, n, k, bias_stride, workspace_ptr, workspace_bytes, stream);
             break;
         case ActivationType::Gelu:
             run_gemm<EpilogueOpBiasFtGelu>(
-                A, B, weight_scales, biases, C, m, n, k, workspace_ptr, workspace_bytes, stream);
+   	        A, B, weight_scales, biases, C, m, n, k, bias_stride, workspace_ptr, workspace_bytes, stream);
             break;
         case ActivationType::Silu:
             run_gemm<EpilogueOpBiasSilu>(
-                A, B, weight_scales, biases, C, m, n, k, workspace_ptr, workspace_bytes, stream);
+   	        A, B, weight_scales, biases, C, m, n, k, bias_stride, workspace_ptr, workspace_bytes, stream);
             break;
         case ActivationType::Identity:
-            run_gemm<EpilogueOpBias>(A, B, weight_scales, biases, C, m, n, k, workspace_ptr, workspace_bytes, stream);
+   	    run_gemm<EpilogueOpBias>(A, B, weight_scales, biases, C, m, n, k, bias_stride, workspace_ptr, workspace_bytes, stream);
             break;
         case ActivationType::InvalidType:
             FT_CHECK_WITH_INFO(false, "Activation type for fpA_intB must be valid.");
@@ -542,7 +552,7 @@ void CutlassFpAIntBGemmRunner<T, WeightType>::gemm(const T*          A,
                                                    cudaStream_t      stream)
 {
     FT_LOG_DEBUG(__PRETTY_FUNCTION__);
-    run_gemm<EpilogueOpNoBias>(A, B, weight_scales, nullptr, C, m, n, k, workspace_ptr, workspace_bytes, stream);
+    run_gemm<EpilogueOpNoBias>(A, B, weight_scales, nullptr, C, m, n, k, 0, workspace_ptr, workspace_bytes, stream);
 }
 
 template <typename T, typename WeightType, typename Arch,
@@ -807,7 +817,7 @@ void CutlassFpAIntBGemmRunner<T, WeightType>::gemm_bias_act_residual(
 
   for (size_t ii = 0; ii < candidate_configs.size(); ++ii) {
     dispatch_to_arch<EpilogueOpNoBias>(
-        A, B, weight_scales, biases, C, m, n, k, candidate_configs[ii],
+        A, B, weight_scales, biases, C, m, n, k, 0, candidate_configs[ii],
         workspace_ptr, workspace_bytes, stream, &occupancies[ii]);
   }
 

@@ -23,7 +23,7 @@ template <typename WeightType>
 void gemm_fp16_int_bias_act(const half *A, const WeightType *B,
 			    const half *weight_scales, const half *bias,
 			    half *C, std::optional<std::string> activation, int m,
-			    int n, int k, char *workspace_ptr,
+			    int n, int k, int bias_stride, char *workspace_ptr,
 			    size_t workspace_bytes, cudaStream_t stream);
 
 template <typename WeightType>

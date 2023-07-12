@@ -7,20 +7,20 @@ ActivationType get_activation(const std::string& activation_name) {
   if (activation_name == "identity") return ActivationType::Identity;
   if (activation_name == "relu") return ActivationType::Relu;
   if (activation_name == "silu") return ActivationType::Silu;
+  if (activation_name == "gelu") return ActivationType::Gelu;
   // todo: more
   return ActivationType::InvalidType;
 }
 
 template <typename WeightType>
 void gemm_fp16_int_bias_act(const half*  A,
-		    const WeightType* B,
-		    const half* weight_scales,
-		    const half* bias,
-		    half* C,
-		    std::optional<std::string> activation,
-		    int m, int n, int k, char* workspace_ptr,
-		    size_t workspace_bytes,
-		    cudaStream_t stream) {
+            		    const WeightType* B,
+	        	    const half* weight_scales,
+		            const half* bias,
+               		    half* C,
+               		    std::optional<std::string> activation,
+			    int m, int n, int k, int bias_stride, char* workspace_ptr,
+	        	    size_t workspace_bytes, cudaStream_t stream) {
   CutlassFpAIntBGemmRunner<half, WeightType> runner;
 
   if (!activation && bias == nullptr) {
@@ -28,10 +28,10 @@ void gemm_fp16_int_bias_act(const half*  A,
 		C, m, n, k, workspace_ptr, workspace_bytes, stream);
   } else if (!activation) {
     runner.gemm_bias_act(A, B, weight_scales, bias,
-			 C, m, n, k, ActivationType::Identity, workspace_ptr, workspace_bytes, stream);
+			 C, m, n, k, bias_stride, ActivationType::Identity, workspace_ptr, workspace_bytes, stream);
   } else {
     runner.gemm_bias_act(A, B, weight_scales, bias,
-			 C, m, n, k, get_activation(*activation), workspace_ptr, workspace_bytes, stream);
+			 C, m, n, k, bias_stride, get_activation(*activation), workspace_ptr, workspace_bytes, stream);
   }
 }
 
@@ -52,7 +52,7 @@ template
 void gemm_fp16_int_bias_act<uint4b_t>(const half *A, const uint4b_t *B,
 				      const half *weight_scales, const half *bias,
 				      half *C, std::optional<std::string> activation, int m,
-				      int n, int k, char *workspace_ptr,
+				      int n, int k, int bias_stride, char *workspace_ptr,
 				      size_t workspace_bytes, cudaStream_t stream);
 
 template
@@ -65,7 +65,7 @@ template
 void gemm_fp16_int_bias_act<uint8_t>(const half *A, const uint8_t *B,
 				     const half *weight_scales, const half *bias,
 				     half *C, std::optional<std::string> activation, int m,
-				     int n, int k, char *workspace_ptr,
+				     int n, int k, int bias_stride, char *workspace_ptr,
 				     size_t workspace_bytes, cudaStream_t stream);
 
 template
