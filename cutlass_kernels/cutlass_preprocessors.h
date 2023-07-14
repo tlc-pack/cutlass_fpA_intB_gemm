@@ -1,4 +1,5 @@
 #pragma once
+#pragma GCC diagnostic ignored "-Wstrict-aliasing"
 
 #include <cstddef>
 #include <cstdint>
