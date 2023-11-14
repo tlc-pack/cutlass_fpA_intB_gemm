@@ -20,18 +20,21 @@
 #include "cutlass/device_kernel.h"
 #include "utils/cuda_utils.h"
 
-namespace fastertransformer {
+namespace fastertransformer
+{
 
-template<typename GemmKernel>
+template <typename GemmKernel>
 inline int compute_occupancy_for_kernel()
 {
 
     int smem_size = int(sizeof(typename GemmKernel::SharedStorage));
 
-    if (smem_size > (48 << 10)) {
-        cudaError_t status =
-            cudaFuncSetAttribute(cutlass::Kernel<GemmKernel>, cudaFuncAttributeMaxDynamicSharedMemorySize, smem_size);
-        if (status == cudaError::cudaErrorInvalidValue) {
+    if (smem_size > (48 << 10))
+    {
+        cudaError_t status
+            = cudaFuncSetAttribute(cutlass::Kernel<GemmKernel>, cudaFuncAttributeMaxDynamicSharedMemorySize, smem_size);
+        if (status == cudaError::cudaErrorInvalidValue)
+        {
             // Clear the error bit since we can ignore this.
             // This should mean that smem_size > cudaDevAttrMaxSharedMemoryPerBlockOptin. In that case, we return an
             // occupancy of 0. This will cause the heuristic to ignore this configuration.
@@ -48,4 +51,4 @@ inline int compute_occupancy_for_kernel()
     return max_active_blocks;
 }
 
-}  // namespace fastertransformer
+} // namespace fastertransformer

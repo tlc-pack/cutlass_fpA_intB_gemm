@@ -45,39 +45,37 @@
 
 ////////////////////////////////////////////////////////////////////////////////
 
-namespace cutlass {
-namespace gemm {
-namespace threadblock {
+namespace cutlass
+{
+namespace gemm
+{
+namespace threadblock
+{
 
 ////////////////////////////////////////////////////////////////////////////////
 // SFINAE trick so I can keep the same loop code for Volta and dispatch to the
 // correct warp level mma. On volta, all data is stored to shared memory as FP16.
-template<typename WarpMma, int kExpansionFactor = 1>
-CUTLASS_DEVICE void run_warp_mma(WarpMma&                           warp_mma,
-                                 typename WarpMma::FragmentC&       D,
-                                 typename WarpMma::FragmentA const& A,
-                                 typename WarpMma::FragmentB const& B,
-                                 typename WarpMma::FragmentC const& C,
-                                 const int                          warp_tileB_k_offset)
+template <typename WarpMma, int kExpansionFactor = 1>
+CUTLASS_DEVICE void run_warp_mma(WarpMma& warp_mma, typename WarpMma::FragmentC& D,
+    typename WarpMma::FragmentA const& A, typename WarpMma::FragmentB const& B, typename WarpMma::FragmentC const& C,
+    const int warp_tileB_k_offset)
 {
     warp_mma(D, A, B, C);
 }
 
-template<typename WarpMma, int kExpansionFactor = WarpMma::kExpansionFactor>
-CUTLASS_DEVICE void run_warp_mma(WarpMma&                                      warp_mma,
-                                 typename WarpMma::FragmentC&                  D,
-                                 typename WarpMma::TransformedFragmentA const& A,
-                                 typename WarpMma::TransformedFragmentB const& B,
-                                 typename WarpMma::FragmentC const&            C,
-                                 const int                                     warp_tileB_k_offset)
+template <typename WarpMma, int kExpansionFactor = WarpMma::kExpansionFactor>
+CUTLASS_DEVICE void run_warp_mma(WarpMma& warp_mma, typename WarpMma::FragmentC& D,
+    typename WarpMma::TransformedFragmentA const& A, typename WarpMma::TransformedFragmentB const& B,
+    typename WarpMma::FragmentC const& C, const int warp_tileB_k_offset)
 {
     warp_mma(D, A, B, C, warp_tileB_k_offset);
 }
+
 ////////////////////////////////////////////////////////////////////////////////
 
 /// Structure to compute the matrix product targeting CUDA cores and SIMT math
 /// instructions.
-template<
+template <
     /// Size of the Gemm problem - concept: gemm::GemmShape<>
     typename Shape_,
     /// Policy describing tuning details (concept: MmaPolicy)
@@ -88,7 +86,8 @@ template<
     int Stages,
     /// Used for partial specialization
     typename Enable = bool>
-class DqMmaBase {
+class DqMmaBase
+{
 public:
     ///< Size of the Gemm problem - concept: gemm::GemmShape<>
     using Shape = Shape_;
@@ -116,8 +115,8 @@ public:
     /// Number of warp-level GEMM oeprations
     static int const kWarpGemmIterations = (WarpGemm::kK / Operator::Policy::MmaShape::kK);
 
-    static constexpr int kNumKIterationsPerWarpBLoad =
-        Operator::IteratorB::InstructionShape::kRow / Operator::InstructionShape::kK;
+    static constexpr int kNumKIterationsPerWarpBLoad
+        = Operator::IteratorB::InstructionShape::kRow / Operator::InstructionShape::kK;
 
     static_assert(!(kWarpGemmIterations % kNumKIterationsPerWarpBLoad), "");
     static constexpr int kWarpGemmIterationsForB = kWarpGemmIterations / kNumKIterationsPerWarpBLoad;
@@ -136,19 +135,20 @@ public:
     //
 
     /// Shared storage object needed by threadblock-scoped GEMM
-    class SharedStorage {
+    class SharedStorage
+    {
     public:
         //
         // Type definitions
         //
 
         /// Shape of the A matrix operand in shared memory
-        using ShapeA =
-            MatrixShape<Shape::kM + Policy::SmemPaddingA::kRow, Shape::kK * kStages + Policy::SmemPaddingA::kColumn>;
+        using ShapeA
+            = MatrixShape<Shape::kM + Policy::SmemPaddingA::kRow, Shape::kK * kStages + Policy::SmemPaddingA::kColumn>;
 
         /// Shape of the B matrix operand in shared memory
-        using ShapeB =
-            MatrixShape<Shape::kK * kStages + Policy::SmemPaddingB::kRow, Shape::kN + Policy::SmemPaddingB::kColumn>;
+        using ShapeB
+            = MatrixShape<Shape::kK * kStages + Policy::SmemPaddingB::kRow, Shape::kN + Policy::SmemPaddingB::kColumn>;
 
     public:
         //
@@ -220,17 +220,17 @@ public:
         ///< ID of warp
         int warp_idx,
         ///< ID of each thread within a warp
-        int lane_idx):
-        warp_tile_iterator_A_(shared_storage.operand_A_ref(), lane_idx),
-        warp_tile_iterator_B_(shared_storage.operand_B_ref(), lane_idx)
+        int lane_idx)
+        : warp_tile_iterator_A_(shared_storage.operand_A_ref(), lane_idx)
+        , warp_tile_iterator_B_(shared_storage.operand_B_ref(), lane_idx)
     {
     }
 };
 
 /////////////////////////////////////////////////////////////////////////////////////////////////
 
-}  // namespace threadblock
-}  // namespace gemm
-}  // namespace cutlass
+} // namespace threadblock
+} // namespace gemm
+} // namespace cutlass
 
 /////////////////////////////////////////////////////////////////////////////////////////////////
