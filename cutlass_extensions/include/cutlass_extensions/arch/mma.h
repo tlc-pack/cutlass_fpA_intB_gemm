@@ -36,11 +36,13 @@
 
 /////////////////////////////////////////////////////////////////////////////////////////////////
 
-namespace cutlass {
-namespace arch {
+namespace cutlass
+{
+namespace arch
+{
 
 // Tag which triggers MMA which will trigger
 struct OpMultiplyAddDequantizeInterleavedBToA;
 
-}  // namespace arch
-}  // namespace cutlass
+} // namespace arch
+} // namespace cutlass

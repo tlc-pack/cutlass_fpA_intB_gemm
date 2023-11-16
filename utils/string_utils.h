@@ -16,39 +16,41 @@
 
 #pragma once
 
-#include <memory>   // std::make_unique
-#include <sstream>  // std::stringstream
+#include <memory>  // std::make_unique
+#include <sstream> // std::stringstream
 #include <string>
 #include <vector>
 
-namespace fastertransformer {
+namespace fastertransformer
+{
 
-template<typename... Args>
+template <typename... Args>
 inline std::string fmtstr(const std::string& format, Args... args)
 {
     // This function came from a code snippet in stackoverflow under cc-by-1.0
     //   https://stackoverflow.com/questions/2342162/stdstring-formatting-like-sprintf
 
     // Disable format-security warning in this function.
-#if defined(_MSC_VER)  // for visual studio
+#if defined(_MSC_VER) // for visual studio
 #pragma warning(push)
 #pragma warning(warning(disable : 4996))
-#elif defined(__GNUC__) || defined(__clang__)  // for gcc or clang
+#elif defined(__GNUC__) || defined(__clang__) // for gcc or clang
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wformat-security"
 #endif
-    int size_s = std::snprintf(nullptr, 0, format.c_str(), args...) + 1;  // Extra space for '\0'
-    if (size_s <= 0) {
+    int size_s = std::snprintf(nullptr, 0, format.c_str(), args...) + 1; // Extra space for '\0'
+    if (size_s <= 0)
+    {
         throw std::runtime_error("Error during formatting.");
     }
     auto size = static_cast<size_t>(size_s);
-    auto buf  = std::make_unique<char[]>(size);
+    auto buf = std::make_unique<char[]>(size);
     std::snprintf(buf.get(), size, format.c_str(), args...);
 #if defined(_MSC_VER)
 #pragma warning(pop)
 #elif defined(__GNUC__) || defined(__clang__)
 #pragma GCC diagnostic pop
 #endif
-    return std::string(buf.get(), buf.get() + size - 1);  // We don't want the '\0' inside
+    return std::string(buf.get(), buf.get() + size - 1); // We don't want the '\0' inside
 }
-}  // namespace fastertransformer
+} // namespace fastertransformer

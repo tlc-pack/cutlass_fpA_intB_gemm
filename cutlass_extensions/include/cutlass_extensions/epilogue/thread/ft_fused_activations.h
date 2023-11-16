@@ -45,9 +45,12 @@
 
 /////////////////////////////////////////////////////////////////////////////////////////////////
 
-namespace cutlass {
-namespace epilogue {
-namespace thread {
+namespace cutlass
+{
+namespace epilogue
+{
+namespace thread
+{
 
 /////////////////////////////////////////////////////////////////////////////////////////////////
 
@@ -69,9 +72,11 @@ __forceinline__ __device__ float tanh_opt(float x)
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////
-template<>
-struct GELU_taylor<float> {
+template <>
+struct GELU_taylor<float>
+{
     static const bool kIsHeavy = true;
+
     CUTLASS_DEVICE
     float operator()(float const& z) const
     {
@@ -79,8 +84,7 @@ struct GELU_taylor<float> {
         float k0 = float(0.7978845608028654);
         float k1 = float(0.044715);
 
-        return float(
-            cutlass::constants::half<float>() * z
+        return float(cutlass::constants::half<float>() * z
             * (cutlass::constants::one<float>() + tanh_opt(k0 * z * (cutlass::constants::one<float>() + k1 * z * z))));
     }
 
@@ -93,8 +97,8 @@ struct GELU_taylor<float> {
     }
 };
 
-}  // namespace thread
-}  // namespace epilogue
-}  // namespace cutlass
+} // namespace thread
+} // namespace epilogue
+} // namespace cutlass
 
 /////////////////////////////////////////////////////////////////////////////////////////////////

@@ -18,9 +18,11 @@
 
 #include "cuda_utils.h"
 
-namespace fastertransformer {
+namespace fastertransformer
+{
 
-enum class ActivationType {
+enum class ActivationType
+{
     Gelu,
     Relu,
     Silu,
@@ -34,7 +36,7 @@ enum class ActivationType {
 inline bool isGatedActivation(ActivationType activaiton_type)
 {
     return activaiton_type == ActivationType::GeGLU || activaiton_type == ActivationType::ReGLU
-           || activaiton_type == ActivationType::SiGLU;
+        || activaiton_type == ActivationType::SiGLU;
 }
 
-}  // namespace fastertransformer
+} // namespace fastertransformer

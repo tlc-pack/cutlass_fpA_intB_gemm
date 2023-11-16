@@ -24,14 +24,16 @@
 #include <string>
 #include <vector>
 
-namespace fastertransformer {
+namespace fastertransformer
+{
 /* **************************** debug tools ********************************* */
-template<typename T>
+template <typename T>
 void check(T result, char const* const func, const char* const file, int const line)
 {
-    if (result) {
-        throw std::runtime_error(std::string("[FT][ERROR] CUDA runtime error: ") + ("<unknown>") + " "
-                                 + file + ":" + std::to_string(line) + " \n");
+    if (result)
+    {
+        throw std::runtime_error(std::string("[FT][ERROR] CUDA runtime error: ") + ("<unknown>") + " " + file + ":"
+            + std::to_string(line) + " \n");
     }
 }
 
@@ -39,22 +41,25 @@ void check(T result, char const* const func, const char* const file, int const l
 
 [[noreturn]] inline void throwRuntimeError(const char* const file, int const line, std::string const& info = "")
 {
-    throw std::runtime_error(std::string("[FT][ERROR] ") + info + " Assertion fail: " + file + ":"
-                             + std::to_string(line) + " \n");
+    throw std::runtime_error(
+        std::string("[FT][ERROR] ") + info + " Assertion fail: " + file + ":" + std::to_string(line) + " \n");
 }
 
 inline void myAssert(bool result, const char* const file, int const line, std::string const& info = "")
 {
-    if (!result) {
+    if (!result)
+    {
         throwRuntimeError(file, line, info);
     }
 }
 
 #define FT_CHECK(val) myAssert(val, __FILE__, __LINE__)
 #define FT_CHECK_WITH_INFO(val, info)                                                                                  \
-    do {                                                                                                               \
+    do                                                                                                                 \
+    {                                                                                                                  \
         bool is_valid_val = (val);                                                                                     \
-        if (!is_valid_val) {                                                                                           \
+        if (!is_valid_val)                                                                                             \
+        {                                                                                                              \
             fastertransformer::myAssert(is_valid_val, __FILE__, __LINE__, (info));                                     \
         }                                                                                                              \
     } while (0)
@@ -73,4 +78,4 @@ inline int getSMVersion()
 
 cudaError_t getSetDevice(int i_device, int* o_device = NULL);
 /* ************************** end of common utils ************************** */
-}  // namespace fastertransformer
+} // namespace fastertransformer

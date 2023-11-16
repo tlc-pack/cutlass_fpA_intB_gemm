@@ -33,16 +33,19 @@
 
 /////////////////////////////////////////////////////////////////////////////////////////////////
 
-namespace cutlass {
-namespace epilogue {
+namespace cutlass
+{
+namespace epilogue
+{
 
 // define scaling mode
-enum class QuantMode {
+enum class QuantMode
+{
     PerTensorQuant,
     PerTokenQuant,
     PerChannelQuant,
     PerTokenChannelQuant
 };
 
-}  // namespace epilogue
-}  // namespace cutlass
+} // namespace epilogue
+} // namespace cutlass

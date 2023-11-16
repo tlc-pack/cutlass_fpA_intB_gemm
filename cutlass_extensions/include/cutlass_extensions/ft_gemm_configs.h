@@ -16,10 +16,12 @@
 
 #pragma once
 
-namespace fastertransformer {
+namespace fastertransformer
+{
 // Note: The shapes are in the format MxNxK. The K shape of the runtime config MUST match the K shape
 //       in the kernel layout details when doing weight only quantization.
-enum class CutlassTileConfig {
+enum class CutlassTileConfig
+{
     // Signals that we should run heuristics do choose a config
     Undefined,
 
@@ -42,17 +44,19 @@ enum class CutlassTileConfig {
     CtaShape128x128x64_WarpShape128x32x64
 };
 
-enum class SplitKStyle {
+enum class SplitKStyle
+{
     NO_SPLIT_K,
     SPLIT_K_SERIAL,
     // SPLIT_K_PARALLEL // Not supported yet
 };
 
-struct CutlassGemmConfig {
-    CutlassTileConfig tile_config    = CutlassTileConfig::ChooseWithHeuristic;
-    SplitKStyle       split_k_style  = SplitKStyle::NO_SPLIT_K;
-    int               split_k_factor = -1;
-    int               stages         = -1;
+struct CutlassGemmConfig
+{
+    CutlassTileConfig tile_config = CutlassTileConfig::ChooseWithHeuristic;
+    SplitKStyle split_k_style = SplitKStyle::NO_SPLIT_K;
+    int split_k_factor = -1;
+    int stages = -1;
 };
 
-}  // namespace fastertransformer
+} // namespace fastertransformer
