@@ -17,6 +17,7 @@
 #pragma once
 
 #include "cutlass_extensions/include/cutlass_extensions/gemm_configs.h"
+#include "cutlass_extensions/include/cutlass_extensions/weight_only_quant_op.h"
 #include "utils/activation_types.h"
 #include <cuda_runtime_api.h>
 
@@ -35,23 +36,24 @@ namespace fastertransformer
   modifications to mix_gemm_B_layout.h.
 */
 
-template <typename T, typename WeightType>
+template <typename T, typename WeightType, cutlass::WeightOnlyQuantOp QuantOp>
 class CutlassFpAIntBGemmRunner
 {
 public:
     CutlassFpAIntBGemmRunner();
     ~CutlassFpAIntBGemmRunner();
 
-    void gemm(const T* A, const WeightType* B, const T* weight_scales, T* C, int m, int n, int k, char* workspace_ptr,
-        const size_t workspace_bytes, cudaStream_t stream);
+    void gemm(const T* A, const WeightType* B, const T* weight_scales, T* C, int m, int n, int k, int group_size,
+        char* workspace_ptr, const size_t workspace_bytes, cudaStream_t stream);
 
     void gemm_bias_act(const T* A, const WeightType* B, const T* weight_scales, const T* biases, T* C, int m, int n,
-        int k, int bias_stride, ActivationType activation_type, char* workspace_ptr, const size_t workspace_bytes,
-        cudaStream_t stream);
+        int k, int group_size, int bias_stride, ActivationType activation_type, char* workspace_ptr,
+        const size_t workspace_bytes, cudaStream_t stream);
 
     void gemm_bias_act_residual(const T* A, const WeightType* B, const T* weight_scales, const T* biases,
-        const T* residual, T* C, int m, int n, int k, const std::string& activation, const std::string& binary_op,
-        const std::string& unary_op, char* workspace_ptr, const size_t workspace_bytes, cudaStream_t stream);
+        const T* residual, T* C, int m, int n, int k, int group_size, const std::string& activation,
+        const std::string& binary_op, const std::string& unary_op, char* workspace_ptr, const size_t workspace_bytes,
+        cudaStream_t stream);
 
     // Returns desired workspace size in bytes.
     int getWorkspaceSize(const int m, const int n, const int k);
@@ -59,15 +61,17 @@ public:
 private:
     template <typename EpilogueTag>
     void dispatch_to_arch(const T* A, const WeightType* B, const T* weight_scales, const T* biases, T* C, int m, int n,
-        int k, int bias_stride, CutlassGemmConfig gemm_config, char* workspace_ptr, const size_t workspace_bytes,
-        cudaStream_t stream, int* occupancy = nullptr);
+        int k, int group_size, int bias_stride, CutlassGemmConfig gemm_config, char* workspace_ptr,
+        const size_t workspace_bytes, cudaStream_t stream, int* occupancy = nullptr);
 
     template <typename EpilogueTag>
     void run_gemm(const T* A, const WeightType* B, const T* weight_scales, const T* biases, T* C, int m, int n, int k,
-        int bias_stride, char* workspace_ptr, const size_t workspace_bytes, cudaStream_t stream);
+        int group_size, int bias_stride, char* workspace_ptr, const size_t workspace_bytes, cudaStream_t stream);
 
 private:
-    static constexpr int split_k_limit = 7;
+    static constexpr int SPLIT_K_LIMIT = 7;
+    static constexpr int MIN_M_TILE = 32;
+    static constexpr int MIN_N_TILE = 128;
 
     int sm_;
     int multi_processor_count_;

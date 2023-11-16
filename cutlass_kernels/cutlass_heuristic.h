@@ -17,6 +17,7 @@
 #pragma once
 
 #include "cutlass_extensions/gemm_configs.h"
+#include "cutlass_extensions/weight_only_quant_op.h"
 #include <cstddef>
 #include <cstdint>
 #include <vector>
@@ -26,7 +27,8 @@ namespace fastertransformer
 
 using tensorrt_llm::cutlass_extensions::CutlassGemmConfig;
 
-std::vector<CutlassGemmConfig> get_candidate_configs(int sm, const bool is_weight_only, const bool simt_configs_only);
+std::vector<CutlassGemmConfig> get_candidate_configs(
+    int sm, const bool is_weight_only, cutlass::WeightOnlyQuantOp quant_op, bool simt_configs_only);
 
 CutlassGemmConfig estimate_best_config_from_occupancies(const std::vector<CutlassGemmConfig>& candidate_configs,
     const std::vector<int>& occupancies, const int64_t m, const int64_t n, const int64_t k, const int64_t num_experts,
