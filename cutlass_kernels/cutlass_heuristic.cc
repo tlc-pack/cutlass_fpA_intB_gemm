@@ -103,12 +103,12 @@ std::vector<CutlassTileConfig> get_candidate_tiles(const bool is_weight_only, co
     return simt_configs_only ? simt_configs : allowed_configs;
 }
 
-std::vector<CutlassGemmConfig> get_candidate_configs(int sm, const bool is_weight_only, const bool simt_configs_only)
+std::vector<CutlassGemmConfig> get_candidate_configs(int sm, const bool is_weight_only, cutlass::WeightOnlyQuantOp quant_op, const bool simt_configs_only)
 {
     std::vector<CutlassTileConfig> tiles = get_candidate_tiles(is_weight_only, simt_configs_only);
 
     std::vector<CutlassGemmConfig> candidate_configs;
-    const int min_stages = 2;
+    const int min_stages = isFinegrained(quant_op) ? 3 : 2;
     const int max_stages = sm >= 80 ? 4 : 2;
 
     for (const auto& tile_config : tiles)
