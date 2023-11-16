@@ -24,7 +24,7 @@
 #include "cutlass_extensions/compute_occupancy.h"
 
 #include "cutlass_extensions/epilogue_helpers.h"
-#include "cutlass_extensions/ft_gemm_configs.h"
+#include "cutlass_extensions/gemm_configs.h"
 #include "cutlass_extensions/gemm/kernel/default_fpA_intB_traits.h"
 #include "cutlass_extensions/gemm/kernel/fpA_intB_gemm.h"
 #include "cutlass_extensions/gemm/kernel/fpA_intB_gemm_with_broadcast.h"

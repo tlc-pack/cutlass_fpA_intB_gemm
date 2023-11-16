@@ -24,6 +24,8 @@
 namespace fastertransformer
 {
 
+using namespace tensorrt_llm::cutlass_extensions;
+
 struct TileShape
 {
     int m;

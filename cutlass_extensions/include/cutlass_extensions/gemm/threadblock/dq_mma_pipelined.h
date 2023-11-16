@@ -48,8 +48,8 @@
 #include "cutlass_extensions/gemm/warp/mma_tensorop_dequantizer.h"
 #include "cutlass_extensions/interleaved_numeric_conversion.h"
 
-#include "cutlass_extensions/ft_gemm_configs.h"
 #include "cutlass_extensions/gemm/kernel/mixed_gemm_B_layout.h"
+#include "cutlass_extensions/gemm_configs.h"
 
 /////////////////////////////////////////////////////////////////////////////////////////////////
 
@@ -92,13 +92,15 @@ template <
     typename TransformBAfterLDG_,
     /// Converter for B matrix applited immediately after the LDS
     typename TransformBAfterLDS_,
+    /// The quantization operator being used
+    WeightOnlyQuantOp QuantOp_,
     /// Used for partial specialization
     typename Enable = bool>
-class DqMmaPipelined : public DqMmaBase<Shape_, Policy_, typename SmemIteratorScale_::Element, 2>
+class DqMmaPipelined : public DqMmaBase<Shape_, Policy_, typename SmemIteratorScale_::Element, 2, QuantOp_>
 {
 public:
     ///< Base class
-    using Base = DqMmaBase<Shape_, Policy_, typename SmemIteratorScale_::Element, 2>;
+    using Base = DqMmaBase<Shape_, Policy_, typename SmemIteratorScale_::Element, 2, QuantOp_>;
 
     using Shape = Shape_;         ///< Size of the Gemm problem - concept: gemm::GemmShape<>
     using IteratorA = IteratorA_; ///< Iterates over tiles of A operand in global memory
@@ -117,6 +119,8 @@ public:
 
     using TransformBAfterLDG = TransformBAfterLDG_;
     using TransformBAfterLDS = TransformBAfterLDS_;
+
+    static constexpr WeightOnlyQuantOp QuantOp = QuantOp_;
 
     //
     // Dependent types
@@ -141,7 +145,7 @@ public:
     using ArchTag = typename Policy::Operator::ArchTag;
 
     using Dequantizer = warp::MmaTensorOpDequantizer<Operator, typename Base::WarpGemm, Operand::kB,
-        typename SmemIteratorScale::Fragment::Element, LayoutScale, 32>;
+        typename SmemIteratorScale::Fragment::Element, LayoutScale, 32, QuantOp>;
 
     /// Complex transform on A operand
     static ComplexTransform const kTransformA = Operator::kTransformA;
@@ -180,9 +184,12 @@ public:
     CUTLASS_DEVICE
     DqMmaPipelined(typename Base::SharedStorage&
                        shared_storage, ///< Shared storage needed for internal use by threadblock-scoped GEMM
-        int thread_idx,                ///< ID within the threadblock
-        int warp_idx,                  ///< ID of warp
-        int lane_idx                   ///< ID of each thread within a warp
+        const int group_size, ///< Will not be used, just to adapt to finegrained modifications and make the compilation
+                              ///< successful. Because DqMmaPipelined is only enabled for sm<80, so even if this
+                              ///< argument is not added, it does not affect compilation for sm>=80.
+        int thread_idx,       ///< ID within the threadblock
+        int warp_idx,         ///< ID of warp
+        int lane_idx          ///< ID of each thread within a warp
         )
         : Base(shared_storage, thread_idx, warp_idx, lane_idx)
         , warp_dequantizer_({shared_storage.operand_scale.data(), LayoutScale(Shape::kN)},
@@ -217,7 +224,7 @@ public:
         IteratorB iterator_B,              ///< iterator over B operand in global memory
         IteratorScale iterator_scale,      ///< iterator over scale operand in global memory
         FragmentC const& src_accum)
-    { ///< source accumulator tile
+    {                                      ///< source accumulator tile
 
         //
         // Prologue
