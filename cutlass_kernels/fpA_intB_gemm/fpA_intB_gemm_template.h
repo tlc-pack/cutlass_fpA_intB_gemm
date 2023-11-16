@@ -24,11 +24,11 @@
 #include "cutlass_extensions/compute_occupancy.h"
 
 #include "cutlass_extensions/epilogue_helpers.h"
-#include "cutlass_extensions/gemm_configs.h"
 #include "cutlass_extensions/gemm/kernel/default_fpA_intB_traits.h"
 #include "cutlass_extensions/gemm/kernel/fpA_intB_gemm.h"
 #include "cutlass_extensions/gemm/kernel/fpA_intB_gemm_with_broadcast.h"
 #include "cutlass_extensions/gemm/threadblock/default_mma.h"
+#include "cutlass_extensions/gemm_configs.h"
 
 #pragma GCC diagnostic pop
 
@@ -38,6 +38,8 @@
 
 namespace fastertransformer
 {
+
+using namespace tensorrt_llm::cutlass_extensions;
 
 template <typename T, typename WeightType, typename arch, typename EpilogueTag, typename ThreadblockShape,
     typename WarpShape, int Stages>
@@ -97,9 +99,10 @@ void generic_mixed_gemm_kernelLauncher(const T* A, const WeightType* B, const T*
         ? n
         : k * GemmKernel::kInterleave;
 
-    typename Gemm::Arguments args({m, n, k}, {reinterpret_cast<ElementType*>(const_cast<T*>(A)), k},
+    typename Gemm::Arguments args({m, n, k}, /*group_size=*/k, {reinterpret_cast<ElementType*>(const_cast<T*>(A)), k},
         {reinterpret_cast<CutlassWeightType*>(const_cast<WeightType*>(B)), ldb},
         {reinterpret_cast<ElementType*>(const_cast<T*>(weight_scales)), 0},
+        /*weight_zero_points=*/{nullptr, 0},
         // TODO: Support more general bias shape
         {reinterpret_cast<ElementType*>(const_cast<T*>(biases)), bias_stride}, {reinterpret_cast<ElementType*>(C), n},
         gemm_config.split_k_factor, {ElementAccumulator(1.f), ElementAccumulator(0.f)});
@@ -424,14 +427,16 @@ void dispatch_gemm_residual(const T* A, const WeightType* B, const T* weight_sca
 
     // TODO: Support batch
     const int batch_count = 1;
+    const int group_size = k;
     const auto lda = k;
     const int ldb = cutlass::platform::is_same<cutlass::layout::RowMajor, typename MixedGemmArchTraits::LayoutB>::value
         ? n
         : k * GemmKernel::kInterleave;
     const int ldc = n;
 
-    typename Gemm::Arguments args({m, n, k}, batch_count, {ElementAccumulator(1.f), ElementAccumulator(1.f)}, A, B,
-        weight_scales, residual, C, biases, nullptr, 0, 0, 0, 0, 0, 0, lda, ldb, ldc, ldc, 0, 0);
+    typename Gemm::Arguments args({m, n, k}, group_size, batch_count,
+        {ElementAccumulator(1.f), ElementAccumulator(1.f)}, A, B, weight_scales, residual, C, biases, nullptr, 0, 0, 0,
+        0, 0, 0, lda, ldb, ldc, ldc, 0, 0);
 
     if (GemmKernel::kInterleave > 1
         && ((k % MixedGemmArchTraits::ThreadblockK) || (k % MixedGemmArchTraits::ThreadblockK)))

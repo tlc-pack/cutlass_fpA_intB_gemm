@@ -43,6 +43,7 @@
 #include "cutlass/gemm/gemm.h"
 #include "cutlass/matrix_coord.h"
 #include "cutlass/semaphore.h"
+#include "cutlass_extensions/weight_only_quant_op.h"
 
 /////////////////////////////////////////////////////////////////////////////////////////////////
 
@@ -106,6 +107,7 @@ struct GemmFpAIntBWithBroadcast
         GemmUniversalMode mode = GemmUniversalMode::kGemm;
 
         cutlass::gemm::GemmCoord problem_size;
+        int group_size;
         int batch_count;
         typename EpilogueOutputOp::Params epilogue;
 
@@ -138,13 +140,14 @@ struct GemmFpAIntBWithBroadcast
         Arguments() {}
 
         CUTLASS_HOST_DEVICE
-        Arguments(cutlass::gemm::GemmCoord const& problem_size, int batch_count,
+        Arguments(cutlass::gemm::GemmCoord const& problem_size, int group_size, int batch_count,
             typename EpilogueOutputOp::Params epilogue, void const* ptr_A, void const* ptr_B, void const* ptr_scales,
             void const* ptr_C, void* ptr_D, const void* ptr_Vector, const void* ptr_Tensor, int64_t batch_stride_A,
             int64_t batch_stride_B, int64_t batch_stride_C, int64_t batch_stride_D, int64_t batch_stride_Vector,
             int64_t batch_stride_Tensor, int lda, int ldb, int ldc, int ldd, int ldr, int ldt,
             typename EpilogueOutputOp::Params output_op = typename EpilogueOutputOp::Params())
             : problem_size(problem_size)
+            , group_size(group_size)
             , batch_count(batch_count)
             , epilogue(epilogue)
             , ptr_A(ptr_A)
@@ -178,6 +181,7 @@ struct GemmFpAIntBWithBroadcast
     struct Params
     {
         cutlass::gemm::GemmCoord problem_size;
+        int group_size;
         cutlass::gemm::GemmCoord grid_tiled_shape;
         int swizzle_log_tile;
 
@@ -231,6 +235,7 @@ struct GemmFpAIntBWithBroadcast
         Params(Arguments const& args, cutlass::gemm::GemmCoord const& grid_tiled_shape, const int gemm_k_size,
             void* workspace = nullptr)
             : problem_size(args.problem_size)
+            , group_size(args.group_size)
             , grid_tiled_shape(grid_tiled_shape)
             , swizzle_log_tile(ThreadblockSwizzle().get_log_tile(grid_tiled_shape))
             , params_A(args.lda)
@@ -280,12 +285,19 @@ struct GemmFpAIntBWithBroadcast
     static Status can_implement(Arguments const& args)
     {
         // todo
+        if constexpr (isFinegrained(Mma::QuantOp))
+        {
+            if (args.group_size != 64 && args.group_size != 128)
+            {
+                return Status::kErrorNotSupported;
+            }
+        }
+
         return Status::kSuccess;
     }
 
     static size_t get_extra_workspace_size(Arguments const& args, cutlass::gemm::GemmCoord const& grid_tiled_shape)
     {
-
         return 0;
     }
 
@@ -323,7 +335,6 @@ struct GemmFpAIntBWithBroadcast
             if (params.grid_tiled_shape.m() <= threadblock_tile_offset.m()
                 || params.grid_tiled_shape.n() <= threadblock_tile_offset.n())
             {
-
                 return;
             }
 
@@ -355,9 +366,12 @@ struct GemmFpAIntBWithBroadcast
                 {problem_size_k * kInterleave, params.problem_size.n() / kInterleave}, thread_idx, tb_offset_B,
                 params.gather_B_indices);
 
-            typename Mma::IteratorScale iterator_scale(params.params_scale,
-                static_cast<ElementScale*>(params.ptr_scales), {1, params.problem_size.n()}, thread_idx,
-                tb_offset_scale);
+            typename MatrixCoord::Index scale_row_extent
+                = isFinegrained(Mma::QuantOp) ? problem_size_k / params.group_size : 1;
+            typename Mma::IteratorScale iterator_scale = initialize_scale<typename Mma::IteratorScale, Mma::QuantOp>(
+                params.params_scale, static_cast<typename Mma::IteratorScale::Pointer>(params.ptr_scales),
+                /*ptr_zeros=*/nullptr, {scale_row_extent, params.problem_size.n()}, thread_idx, tb_offset_scale,
+                params.group_size);
 
             // Broadcast the warp_id computed by lane 0 to ensure dependent code is
             // compiled as warp-uniform.
@@ -368,7 +382,7 @@ struct GemmFpAIntBWithBroadcast
             // Main loop
             //
             // Construct thread-scoped matrix multiply
-            Mma mma(shared_storage.main_loop, thread_idx, warp_idx, lane_idx);
+            Mma mma(shared_storage.main_loop, params.group_size, thread_idx, warp_idx, lane_idx);
 
             typename Mma::FragmentC accumulators;
 
@@ -431,6 +445,26 @@ struct GemmFpAIntBWithBroadcast
                 params.problem_size.mn(), threadblock_offset);
         }
     };
+
+    // Initializes the fine grained scale+bias iterator. Needed since the fine grained iterator
+    // has a different constructor signature than a regular cutlass iterator
+    template <typename IteratorScale, WeightOnlyQuantOp op, std::enable_if_t<isFinegrained(op), bool> = true>
+    CUTLASS_DEVICE static IteratorScale initialize_scale(typename IteratorScale::Params const& params,
+        typename IteratorScale::Pointer pointer_scale, typename IteratorScale::Pointer pointer_zero,
+        typename IteratorScale::TensorCoord extent, int thread_id,
+        typename IteratorScale::TensorCoord const& threadblock_offset, int group_size)
+    {
+        return IteratorScale(params, pointer_scale, pointer_zero, extent, thread_id, threadblock_offset, group_size);
+    }
+
+    template <typename IteratorScale, WeightOnlyQuantOp op, std::enable_if_t<!isFinegrained(op), bool> = true>
+    CUTLASS_DEVICE static IteratorScale initialize_scale(typename IteratorScale::Params const& params,
+        typename IteratorScale::Pointer pointer_scale, typename IteratorScale::Pointer pointer_zero,
+        typename IteratorScale::TensorCoord extent, int thread_id,
+        typename IteratorScale::TensorCoord const& threadblock_offset, int group_size)
+    {
+        return IteratorScale(params, pointer_scale, extent, thread_id, threadblock_offset);
+    }
 
     /*
         To improve compilation speed, we do not compile the device operator if the
