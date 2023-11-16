@@ -1,3 +1,19 @@
+/*
+ * SPDX-FileCopyrightText: Copyright (c) 2022-2023 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+ * SPDX-License-Identifier: Apache-2.0
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ * http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
 #pragma once
 
 #include "cutlass/gemm/threadblock/default_mma.h"
@@ -51,10 +67,12 @@ template <
     /// Instruction-level tile size (concept: GemmShape)
     typename InstructionShape,
     /// Operation performed by GEMM
-    typename Operator>
+    typename Operator_>
 struct DqMma<ElementA, LayoutA, kAlignmentA, ElementB, LayoutB, kAlignmentB, ElementScale, LayoutScale, kAlignmentScale,
     ElementAccumulator, layout::RowMajor, OperatorClass, ArchTag, ThreadblockShape, WarpShape, InstructionShape, 2,
-    Operator, SharedMemoryClearOption::kNone, typename platform::enable_if<(ArchTag::kMinComputeCapability < 80)>::type>
+    Operator_, SharedMemoryClearOption::kNone,
+    typename platform::enable_if<(
+        ArchTag::kMinComputeCapability < 80 && !layout::IsColumnMajorTileInterleave<LayoutB>::value)>::type>
 {
 
     static_assert(platform::is_same<ElementA, half_t>::value || platform::is_same<ElementA, bfloat16_t>::value,
@@ -62,6 +80,10 @@ struct DqMma<ElementA, LayoutA, kAlignmentA, ElementB, LayoutB, kAlignmentB, Ele
 
     static_assert(platform::is_same<ElementB, uint8_t>::value || platform::is_same<ElementB, uint4b_t>::value,
         "Element B must be uint8 or uint4");
+
+    using OperatorInfo = arch::DetagOperator<Operator_>;
+    using Operator = typename OperatorInfo::Operator;
+    static_assert(OperatorInfo::QuantOp == WeightOnlyQuantOp::PER_COLUMN_SCALE_ONLY, "");
 
     static constexpr bool DqAfterLDG = platform::is_same<arch::OpMultiplyAdd, Operator>::value;
     static constexpr bool arch_has_bf16_mma = ArchTag::kMinComputeCapability >= 80;
@@ -105,7 +127,7 @@ struct DqMma<ElementA, LayoutA, kAlignmentA, ElementB, LayoutB, kAlignmentB, Ele
     using ThreadblockMma = cutlass::gemm::threadblock::DqMmaPipelined<typename MmaCore::Shape, IteratorA,
         typename MmaCore::SmemIteratorA, IteratorB, typename MmaCore::SmemIteratorB, IteratorScale, SmemIteratorScale,
         ElementAccumulator, layout::RowMajor, typename MmaCore::MmaPolicy, typename Converters::TransformAfterLDG,
-        typename Converters::TransformAfterLDS>;
+        typename Converters::TransformAfterLDS, OperatorInfo::QuantOp>;
 };
 
 // Specialization to handle column major interleave B
@@ -118,6 +140,8 @@ template <
     int kAlignmentA,
     /// Type for element B
     typename ElementB,
+    /// Layout type for B matrix operand
+    typename LayoutB,
     /// Access granularity of B matrix in units of elements
     int kAlignmentB,
     /// Element type for the input scale
@@ -139,16 +163,12 @@ template <
     /// Instruction-level tile size (concept: GemmShape)
     typename InstructionShape,
     /// Operation performed by GEMM
-    typename Operator,
-    ///
-    int RowsPerTile,
-    ///
-    int ColumnsInterleaved>
-struct DqMma<ElementA, LayoutA, kAlignmentA, ElementB,
-    layout::ColumnMajorTileInterleave<RowsPerTile, ColumnsInterleaved>, kAlignmentB, ElementScale, LayoutScale,
-    kAlignmentScale, ElementAccumulator, layout::RowMajor, OperatorClass, ArchTag, ThreadblockShape, WarpShape,
-    InstructionShape, 2, Operator, SharedMemoryClearOption::kNone,
-    typename platform::enable_if<(ArchTag::kMinComputeCapability < 80)>::type>
+    typename Operator_>
+struct DqMma<ElementA, LayoutA, kAlignmentA, ElementB, LayoutB, kAlignmentB, ElementScale, LayoutScale, kAlignmentScale,
+    ElementAccumulator, layout::RowMajor, OperatorClass, ArchTag, ThreadblockShape, WarpShape, InstructionShape, 2,
+    Operator_, SharedMemoryClearOption::kNone,
+    typename platform::enable_if<(
+        ArchTag::kMinComputeCapability < 80 && layout::IsColumnMajorTileInterleave<LayoutB>::value)>::type>
 {
 
     static_assert(platform::is_same<ElementA, half_t>::value || platform::is_same<ElementA, bfloat16_t>::value,
@@ -156,6 +176,10 @@ struct DqMma<ElementA, LayoutA, kAlignmentA, ElementB,
 
     static_assert(platform::is_same<ElementB, uint8_t>::value || platform::is_same<ElementB, uint4b_t>::value,
         "Element B must be uint8 or uint4");
+
+    using OperatorInfo = arch::DetagOperator<Operator_>;
+    using Operator = typename OperatorInfo::Operator;
+    static_assert(OperatorInfo::QuantOp == WeightOnlyQuantOp::PER_COLUMN_SCALE_ONLY, "");
 
     static constexpr bool DqAfterLDG = platform::is_same<arch::OpMultiplyAdd, Operator>::value;
     static constexpr bool arch_has_bf16_mma = ArchTag::kMinComputeCapability >= 80;
@@ -173,6 +197,8 @@ struct DqMma<ElementA, LayoutA, kAlignmentA, ElementB,
         typename MmaCore::IteratorThreadMapA, kAlignmentA>;
 
 private:
+    static constexpr int ColumnsInterleaved = LayoutB::kColumnsInterleaved;
+    static constexpr int RowsPerTile = LayoutB::kRowsPerTile;
     static_assert(!(MmaCore::Shape::kN % ColumnsInterleaved), "");
     static_assert(RowsPerTile == MmaCore::Shape::kK, "");
 
@@ -215,7 +241,7 @@ public:
     using ThreadblockMma = cutlass::gemm::threadblock::DqMmaPipelined<typename MmaCore::Shape, IteratorA,
         typename MmaCore::SmemIteratorA, IteratorB, typename MmaCore::SmemIteratorB, IteratorScale, SmemIteratorScale,
         ElementAccumulator, layout::RowMajor, typename MmaCore::MmaPolicy, typename Converters::TransformAfterLDG,
-        typename Converters::TransformAfterLDS>;
+        typename Converters::TransformAfterLDS, OperatorInfo::QuantOp>;
 };
 
 } // namespace threadblock

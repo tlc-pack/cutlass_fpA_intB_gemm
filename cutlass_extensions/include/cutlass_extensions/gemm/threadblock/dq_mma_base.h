@@ -43,6 +43,8 @@
 #include "cutlass/matrix_shape.h"
 #include "cutlass/numeric_types.h"
 
+#include "cutlass_extensions/weight_only_quant_op.h"
+
 ////////////////////////////////////////////////////////////////////////////////
 
 namespace cutlass
@@ -84,7 +86,9 @@ template <
     typename ElementScale_,
     /// Number of stages,
     int Stages,
-    /// Used for partial specialization
+    /// The dequantizing op to be performed.
+    WeightOnlyQuantOp DequantOp,
+    /// Used for partial specialization,
     typename Enable = bool>
 class DqMmaBase
 {
@@ -97,6 +101,15 @@ public:
 
     ///< Type of the scale to be loaded
     using ElementScale = ElementScale_;
+
+    static_assert(DequantOp != WeightOnlyQuantOp::UNDEFINED, "");
+
+    // Finegrained scales get streamed in via cp.async
+    static constexpr int ScalebiasStages = isFinegrained(DequantOp) ? Stages : 1;
+    // We always have scales.
+    static constexpr int ScaleElementsPerStage = Shape::kN;
+    // We sometimes have a bias
+    static constexpr int BiasElementsPerStage = hasZero(DequantOp) ? Shape::kN : 0;
 
     //
     // Dependent types
@@ -112,7 +125,7 @@ public:
     /// Shape describing the number of warps filling the CTA
     using WarpCount = GemmShape<Shape::kM / WarpGemm::kM, Shape::kN / WarpGemm::kN, Shape::kK / WarpGemm::kK>;
 
-    /// Number of warp-level GEMM oeprations
+    /// Number of warp-level GEMM operations
     static int const kWarpGemmIterations = (WarpGemm::kK / Operator::Policy::MmaShape::kK);
 
     static constexpr int kNumKIterationsPerWarpBLoad
@@ -150,6 +163,11 @@ public:
         using ShapeB
             = MatrixShape<Shape::kK * kStages + Policy::SmemPaddingB::kRow, Shape::kN + Policy::SmemPaddingB::kColumn>;
 
+        /// Shape of the shared memory buffer for the scales for the B matrix.
+        using ShapeScale = MatrixShape<ScalebiasStages, ScaleElementsPerStage>;
+        /// Shape of the shared memory buffer for the biases of the B matrix.
+        using ShapeZero = MatrixShape<ScalebiasStages, BiasElementsPerStage>;
+
     public:
         //
         // Data members
@@ -162,7 +180,10 @@ public:
         AlignedBuffer<typename Operator::ElementB, ShapeB::kCount> operand_B;
 
         /// Buffer to hold scales for threadblock
-        AlignedBuffer<ElementScale, Shape::kN> operand_scale;
+        AlignedBuffer<ElementScale, ShapeScale::kCount> operand_scale;
+
+        /// Buffer to hold scales for threadblock
+        AlignedBuffer<ElementScale, ShapeZero::kCount> operand_zero;
 
     public:
         //

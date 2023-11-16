@@ -1,3 +1,19 @@
+/*
+ * SPDX-FileCopyrightText: Copyright (c) 2022-2023 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+ * SPDX-License-Identifier: Apache-2.0
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ * http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
 /**
  * @file epilogue_helpers.h
  *
@@ -13,9 +29,11 @@
 #include "cutlass/epilogue/thread/linear_combination_generic.h"
 #include "cutlass/epilogue/thread/linear_combination_relu.h"
 #include "cutlass/epilogue/thread/linear_combination_silu.h"
-#include "cutlass_extensions/epilogue/thread/ft_fused_activations.h"
+#include "cutlass_extensions/epilogue/thread/fused_activations.h"
 
-namespace fastertransformer
+namespace tensorrt_llm
+{
+namespace cutlass_extensions
 {
 
 struct EpilogueOpBiasSilu
@@ -79,4 +97,5 @@ struct Epilogue<ElementType, ElementsPerVectorAccess, ElementAccumulator, Epilog
         ElementAccumulator, cutlass::epilogue::thread::ScaleType::Default>;
 };
 
-} // namespace fastertransformer
+} // namespace cutlass_extensions
+} // namespace tensorrt_llm

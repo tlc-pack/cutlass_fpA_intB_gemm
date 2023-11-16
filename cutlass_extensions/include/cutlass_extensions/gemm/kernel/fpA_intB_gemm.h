@@ -42,6 +42,8 @@
 #include "cutlass/matrix_coord.h"
 #include "cutlass/semaphore.h"
 
+#include <type_traits>
+
 /////////////////////////////////////////////////////////////////////////////////////////////////
 
 namespace cutlass
@@ -52,6 +54,12 @@ namespace kernel
 {
 
 /////////////////////////////////////////////////////////////////////////////////////////////////
+
+namespace detail
+{
+template <typename>
+inline constexpr bool dependent_false_v = false;
+}
 
 template <typename Mma_,          ///! Threadblock-scoped matrix multiply-accumulate
     typename Epilogue_,           ///! Epilogue
@@ -105,9 +113,11 @@ struct GemmFpAIntB
         GemmUniversalMode mode = GemmUniversalMode::kGemm;
 
         cutlass::gemm::GemmCoord problem_size;
+        int group_size;
         typename Mma::IteratorA::TensorRef ref_A;
         typename Mma::IteratorB::TensorRef ref_B;
         typename Mma::IteratorScale::TensorRef ref_scale;
+        typename Mma::IteratorScale::TensorRef ref_zero;
         typename Epilogue::OutputTileIterator::TensorRef ref_C;
         typename Epilogue::OutputTileIterator::TensorRef ref_D;
 
@@ -132,17 +142,20 @@ struct GemmFpAIntB
         Arguments() {}
 
         CUTLASS_HOST_DEVICE
-        Arguments(cutlass::gemm::GemmCoord const& problem_size, typename Mma::IteratorA::TensorRef ref_A,
-            typename Mma::IteratorB::TensorRef ref_B, typename Mma::IteratorScale::TensorRef ref_scale,
+        Arguments(cutlass::gemm::GemmCoord const& problem_size, const int group_size,
+            typename Mma::IteratorA::TensorRef ref_A, typename Mma::IteratorB::TensorRef ref_B,
+            typename Mma::IteratorScale::TensorRef ref_scale, typename Mma::IteratorScale::TensorRef ref_zero,
             typename Epilogue::OutputTileIterator::TensorRef ref_C,
             typename Epilogue::OutputTileIterator::TensorRef ref_D, int serial_split_k_factor,
             typename EpilogueOutputOp::Params output_op = typename EpilogueOutputOp::Params(),
             int const* gather_A_indices = nullptr, int const* gather_B_indices = nullptr,
             int const* scatter_D_indices = nullptr)
             : problem_size(problem_size)
+            , group_size(group_size)
             , ref_A(ref_A)
             , ref_B(ref_B)
             , ref_scale(ref_scale)
+            , ref_zero(ref_zero)
             , ref_C(ref_C)
             , ref_D(ref_D)
             , batch_count(serial_split_k_factor)
@@ -158,6 +171,7 @@ struct GemmFpAIntB
     struct Params
     {
         cutlass::gemm::GemmCoord problem_size;
+        int group_size;
         cutlass::gemm::GemmCoord grid_tiled_shape;
         int swizzle_log_tile;
         typename Mma::IteratorA::Params params_A;
@@ -166,6 +180,7 @@ struct GemmFpAIntB
         typename Mma::IteratorB::TensorRef ref_B;
         typename Mma::IteratorScale::Params params_scale;
         typename Mma::IteratorScale::TensorRef ref_scale;
+        typename Mma::IteratorScale::TensorRef ref_zero;
         typename Epilogue::OutputTileIterator::Params params_C;
         typename Epilogue::OutputTileIterator::TensorRef ref_C;
         typename Epilogue::OutputTileIterator::Params params_D;
@@ -194,6 +209,7 @@ struct GemmFpAIntB
         Params(Arguments const& args, cutlass::gemm::GemmCoord const& grid_tiled_shape, const int gemm_k_size,
             void* workspace = nullptr)
             : problem_size(args.problem_size)
+            , group_size(args.group_size)
             , grid_tiled_shape(grid_tiled_shape)
             , swizzle_log_tile(ThreadblockSwizzle().get_log_tile(grid_tiled_shape))
             , params_A(args.ref_A.layout())
@@ -202,6 +218,7 @@ struct GemmFpAIntB
             , ref_B(args.ref_B)
             , params_scale(args.ref_scale.layout())
             , ref_scale(args.ref_scale)
+            , ref_zero(args.ref_zero)
             , params_C(args.ref_C.layout())
             , ref_C(args.ref_C)
             , params_D(args.ref_D.layout())
@@ -271,6 +288,11 @@ struct GemmFpAIntB
             return Status::kErrorMisalignedOperand;
         }
 
+        if (!TensorRef_aligned(args.ref_zero, kAlignmentScale))
+        {
+            return Status::kErrorMisalignedOperand;
+        }
+
         if (!TensorRef_aligned(args.ref_C, kAlignmentC))
         {
             return Status::kErrorMisalignedOperand;
@@ -279,6 +301,34 @@ struct GemmFpAIntB
         if (!TensorRef_aligned(args.ref_D, kAlignmentC))
         {
             return Status::kErrorMisalignedOperand;
+        }
+
+        if (!args.ref_scale.good())
+        {
+            return Status::kErrorNotSupported;
+        }
+
+        if constexpr (hasZero(Mma::QuantOp))
+        {
+            if (!args.ref_zero.good())
+            {
+                return Status::kErrorNotSupported;
+            }
+        }
+        else
+        {
+            if (args.ref_zero.good())
+            {
+                return Status::kErrorNotSupported;
+            }
+        }
+
+        if constexpr (isFinegrained(Mma::QuantOp))
+        {
+            if (args.group_size != 64 && args.group_size != 128)
+            {
+                return Status::kErrorNotSupported;
+            }
         }
 
         return Status::kSuccess;
@@ -302,6 +352,28 @@ struct GemmFpAIntB
             CUTLASS_NOT_IMPLEMENTED();
         }
     };
+
+    // Initializes the fine grained scale+bias iterator. Needed since the fine grained iterator
+    // has a different constructor signature than a regular cutlass iterator
+    template <typename IteratorScale, WeightOnlyQuantOp op, std::enable_if_t<isFinegrained(op), bool> = true>
+    CUTLASS_DEVICE static IteratorScale initialize_scale(typename IteratorScale::Params const& params,
+        typename IteratorScale::Pointer pointer_scale, typename IteratorScale::Pointer pointer_zero,
+        typename IteratorScale::TensorCoord extent, int thread_id,
+        typename IteratorScale::TensorCoord const& threadblock_offset, int group_size)
+    {
+
+        return IteratorScale(params, pointer_scale, pointer_zero, extent, thread_id, threadblock_offset, group_size);
+    }
+
+    template <typename IteratorScale, WeightOnlyQuantOp op, std::enable_if_t<!isFinegrained(op), bool> = true>
+    CUTLASS_DEVICE static IteratorScale initialize_scale(typename IteratorScale::Params const& params,
+        typename IteratorScale::Pointer pointer_scale, typename IteratorScale::Pointer pointer_zero,
+        typename IteratorScale::TensorCoord extent, int thread_id,
+        typename IteratorScale::TensorCoord const& threadblock_offset, int group_size)
+    {
+
+        return IteratorScale(params, pointer_scale, extent, thread_id, threadblock_offset);
+    }
 
     template <typename dummy>
     struct KernelRunner<true, dummy>
@@ -337,7 +409,9 @@ struct GemmFpAIntB
             cutlass::MatrixCoord tb_offset_B{threadblock_tile_offset.k() * params.gemm_k_size * kInterleave,
                 threadblock_tile_offset.n() * Mma::Shape::kN / kInterleave};
 
-            cutlass::MatrixCoord tb_offset_scale{0, threadblock_tile_offset.n() * Mma::Shape::kN};
+            typename MatrixCoord::Index fg_row_offset = threadblock_tile_offset.k() * params.gemm_k_size / 64;
+            typename MatrixCoord::Index scale_row_offset = isFinegrained(Mma::QuantOp) ? fg_row_offset : 0;
+            cutlass::MatrixCoord tb_offset_scale{scale_row_offset, threadblock_tile_offset.n() * Mma::Shape::kN};
 
             // Problem size is a function of threadblock index in the K dimension
             int problem_size_k = min(params.problem_size.k(), (threadblock_tile_offset.k() + 1) * params.gemm_k_size);
@@ -356,8 +430,10 @@ struct GemmFpAIntB
                 {problem_size_k * kInterleave, params.problem_size.n() / kInterleave}, thread_idx, tb_offset_B,
                 params.gather_B_indices);
 
-            typename Mma::IteratorScale iterator_scale(params.params_scale, params.ref_scale.data(),
-                {1, params.problem_size.n()}, thread_idx, tb_offset_scale);
+            typename MatrixCoord::Index scale_row_extent = isFinegrained(Mma::QuantOp) ? problem_size_k / 64 : 1;
+            typename Mma::IteratorScale iterator_scale = initialize_scale<typename Mma::IteratorScale, Mma::QuantOp>(
+                params.params_scale, params.ref_scale.data(), params.ref_zero.data(),
+                {scale_row_extent, params.problem_size.n()}, thread_idx, tb_offset_scale, params.group_size);
 
             // Broadcast the warp_id computed by lane 0 to ensure dependent code
             // is compiled as warp-uniform.
@@ -368,7 +444,7 @@ struct GemmFpAIntB
             // Main loop
             //
             // Construct thread-scoped matrix multiply
-            Mma mma(shared_storage.main_loop, thread_idx, warp_idx, lane_idx);
+            Mma mma(shared_storage.main_loop, params.group_size, thread_idx, warp_idx, lane_idx);
 
             typename Mma::FragmentC accumulators;
 
@@ -471,15 +547,20 @@ struct GemmFpAIntB
     CUTLASS_DEVICE
     void operator()(Params const& params, SharedStorage& shared_storage)
     {
-#if defined(__CUDA_ARCH__) && (__CUDA_ARCH__ >= 700) && (__CUDA_ARCH__ < 750)
+#if defined(__CUDA_ARCH__)
+#if (__CUDA_ARCH__ >= 700) && (__CUDA_ARCH__ < 750)
         static constexpr bool compile_needed = platform::is_same<KernelArch, arch::Sm70>::value;
         KernelRunner<compile_needed>::run_kernel(params, shared_storage);
-#elif defined(__CUDA_ARCH__) && (__CUDA_ARCH__ >= 750) && (__CUDA_ARCH__ < 800)
+#elif (__CUDA_ARCH__ >= 750) && (__CUDA_ARCH__ < 800)
         static constexpr bool compile_needed = platform::is_same<KernelArch, arch::Sm75>::value;
         KernelRunner<compile_needed>::run_kernel(params, shared_storage);
-#elif defined(__CUDA_ARCH__) && (__CUDA_ARCH__ >= 800) && (__CUDA_ARCH__ < 900)
+#elif (__CUDA_ARCH__ >= 800) && (__CUDA_ARCH__ <= 900)
         static constexpr bool compile_needed = platform::is_same<KernelArch, arch::Sm80>::value;
         KernelRunner<compile_needed>::run_kernel(params, shared_storage);
+#else
+        static_assert(
+            false, "Invalid architecture being compiled. Only Volta+ supported in weight-only quantization kernels.");
+#endif
 #else
         CUTLASS_NOT_IMPLEMENTED();
 #endif
