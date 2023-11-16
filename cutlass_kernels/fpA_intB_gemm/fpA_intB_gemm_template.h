@@ -113,21 +113,6 @@ void generic_mixed_gemm_kernelLauncher(const T* A, const WeightType* B, const T*
         {
             throw std::runtime_error("Only group size 64 and 128 supported for fine grained kernels.");
         }
-
-        // if constexpr (QuantOp == cutlass::WeightOnlyQuantOp::FINEGRAINED_SCALE_ONLY)
-        // {
-        //     if (weight_zero_points != nullptr)
-        //     {
-        //         throw std::runtime_error("Weight zero pointer must be a nullptr for scale only fine grained");
-        //     }
-        // }
-        // else if constexpr (QuantOp == cutlass::WeightOnlyQuantOp::FINEGRAINED_SCALE_AND_ZEROS)
-        // {
-        //     if (weight_zero_points == nullptr)
-        //     {
-        //         throw std::runtime_error("Weight zero pointer must be valid for scale and bias fine grained");
-        //     }
-        // }
     }
     else
     {
@@ -135,11 +120,6 @@ void generic_mixed_gemm_kernelLauncher(const T* A, const WeightType* B, const T*
         {
             throw std::runtime_error("Invalid group size for per column scaling kernels.");
         }
-
-        // if (weight_zero_points != nullptr)
-        // {
-        //     throw std::runtime_error("Weight zero-points must be null when running per column scaling");
-        // }
     }
 
     const int ld_scale_zero = cutlass::isFinegrained(QuantOp) ? n : 0;
@@ -147,10 +127,8 @@ void generic_mixed_gemm_kernelLauncher(const T* A, const WeightType* B, const T*
     typename Gemm::Arguments args({m, n, k}, group_size, {reinterpret_cast<ElementType*>(const_cast<T*>(A)), k},
         {reinterpret_cast<CutlassWeightType*>(const_cast<WeightType*>(B)), ldb},
         {reinterpret_cast<ElementType*>(const_cast<T*>(weight_scales)), ld_scale_zero},
-        /*weight_zero_points=*/{nullptr, 0},
-        // TODO: Support more general bias shape
-        {reinterpret_cast<ElementType*>(const_cast<T*>(biases)), bias_stride}, {reinterpret_cast<ElementType*>(C), n},
-        gemm_config.split_k_factor, {ElementAccumulator(1.f), output_op_beta});
+        /*weight_zero_points=*/{nullptr, 0}, {reinterpret_cast<ElementType*>(const_cast<T*>(biases)), bias_stride},
+        {reinterpret_cast<ElementType*>(C), n}, gemm_config.split_k_factor, {ElementAccumulator(1.f), output_op_beta});
 
     // This assertion is enabled because because for the column interleaved layout, K MUST be a multiple of
     // threadblockK. The reason for this is that the default pitchlinear iterators are used to handle walking over the
@@ -560,7 +538,6 @@ void dispatch_gemm_residual(CutlassGemmConfig config, const T* A, const WeightTy
     if constexpr (cutlass::isFinegrained(QuantOp) && Arch::kMinComputeCapability < 80)
     {
         throw std::runtime_error("Fine grained kernels are only supported on Ampere and above.");
-        return;
     }
     else if constexpr (std::is_same<Arch, cutlass::arch::Sm75>::value)
     {
