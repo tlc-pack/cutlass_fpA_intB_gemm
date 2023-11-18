@@ -547,20 +547,15 @@ struct GemmFpAIntB
     CUTLASS_DEVICE
     void operator()(Params const& params, SharedStorage& shared_storage)
     {
-#if defined(__CUDA_ARCH__)
-#if (__CUDA_ARCH__ >= 700) && (__CUDA_ARCH__ < 750)
+#if defined(__CUDA_ARCH__) && (__CUDA_ARCH__ >= 700) && (__CUDA_ARCH__ < 750)
         static constexpr bool compile_needed = platform::is_same<KernelArch, arch::Sm70>::value;
         KernelRunner<compile_needed>::run_kernel(params, shared_storage);
-#elif (__CUDA_ARCH__ >= 750) && (__CUDA_ARCH__ < 800)
+#elif defined(__CUDA_ARCH__) && (__CUDA_ARCH__ >= 750) && (__CUDA_ARCH__ < 800)
         static constexpr bool compile_needed = platform::is_same<KernelArch, arch::Sm75>::value;
         KernelRunner<compile_needed>::run_kernel(params, shared_storage);
-#elif (__CUDA_ARCH__ >= 800) && (__CUDA_ARCH__ <= 900)
+#elif defined(__CUDA_ARCH__) && (__CUDA_ARCH__ >= 800) && (__CUDA_ARCH__ <= 900)
         static constexpr bool compile_needed = platform::is_same<KernelArch, arch::Sm80>::value;
         KernelRunner<compile_needed>::run_kernel(params, shared_storage);
-#else
-        static_assert(
-            false, "Invalid architecture being compiled. Only Volta+ supported in weight-only quantization kernels.");
-#endif
 #else
         CUTLASS_NOT_IMPLEMENTED();
 #endif
