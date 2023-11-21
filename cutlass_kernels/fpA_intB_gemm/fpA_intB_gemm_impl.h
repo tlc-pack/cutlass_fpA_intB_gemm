@@ -22,7 +22,7 @@
 namespace fastertransformer
 {
 
-ActivationType get_activation(const std::string& activation_name)
+inline ActivationType get_activation(const std::string& activation_name)
 {
     if (activation_name == "identity")
         return ActivationType::Identity;
@@ -70,6 +70,5 @@ void gemm_fp16_int_bias_act_residual(const half* A, const WeightType* B, const h
     runner.gemm_bias_act_residual(A, B, weight_scales, bias, residual, C, m, n, k, group_size, activation, binary_op,
         unary_op, workspace_ptr, workspace_bytes, stream);
 }
-
 
 } // namespace fastertransformer
