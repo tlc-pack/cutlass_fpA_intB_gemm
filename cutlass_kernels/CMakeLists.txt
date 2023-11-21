@@ -27,4 +27,4 @@ set(CMAKE_CUDA_FLAGS "${CMAKE_CUDA_FLAGS} -t 8 \
                       -gencode=arch=compute_80,code=\\\"sm_80,compute_80\\\" \
                       ")
 
-add_library(fpA_intB_gemm SHARED fpA_intB_gemm.cu cutlass_heuristic.cc cutlass_preprocessors.cc ${CMAKE_CURRENT_SOURCE_DIR}/../utils/logger.cc ${CMAKE_CURRENT_SOURCE_DIR}/../utils/cuda_utils.cc)
+add_library(fpA_intB_gemm SHARED fpA_intB_gemm/fpA_intB_gemm_per_col.cu fpA_intB_gemm/fpA_intB_gemm_finegrained.cu  cutlass_heuristic.cc cutlass_preprocessors.cc ${CMAKE_CURRENT_SOURCE_DIR}/../utils/logger.cc ${CMAKE_CURRENT_SOURCE_DIR}/../utils/cuda_utils.cc)
