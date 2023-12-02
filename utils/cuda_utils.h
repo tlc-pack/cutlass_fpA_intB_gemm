@@ -73,7 +73,7 @@ inline int getSMVersion()
     int sm_minor = 0;
     check_cuda_error(cudaDeviceGetAttribute(&sm_major, cudaDevAttrComputeCapabilityMajor, device));
     check_cuda_error(cudaDeviceGetAttribute(&sm_minor, cudaDevAttrComputeCapabilityMinor, device));
-    return sm_major * 10 + sm_minor;
+    return std::min(80, sm_major * 10 + sm_minor);
 }
 
 cudaError_t getSetDevice(int i_device, int* o_device = NULL);
