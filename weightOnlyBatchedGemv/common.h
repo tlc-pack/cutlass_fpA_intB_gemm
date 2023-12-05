@@ -39,9 +39,11 @@ struct WeightOnlyParams
     const int n;
     const int k;
     const int group_size;
+    const int bias_stride;
 
     WeightOnlyParams(const uint8_t* _qweight, const half* _scales, const half* _zeros, const half* _in,
-        const half* _bias, half* _out, const int _m, const int _n, const int _k, const int _group_size)
+        const half* _bias, half* _out, const int _m, const int _n, const int _k, const int _group_size,
+        const int _bias_stride)
         : qweight(_qweight)
         , scales(_scales)
         , zeros(_zeros)
@@ -52,6 +54,7 @@ struct WeightOnlyParams
         , n(_n)
         , k(_k)
         , group_size(_group_size)
+        , bias_stride(_bias_stride)
     {
     }
 };

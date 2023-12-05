@@ -261,7 +261,7 @@ public:
 template <WeightOnlyQuantType QType, typename WeightOnlyFlag, template <typename T> class ActOp, bool Zero, bool Bias,
     int NPerBlock, int Batch, int BlockSize>
 __global__ void weight_only_batched_gemv(const uint8_t* qweight, const half* scales, const half* zeros, const half* in,
-    const half* bias, half* out, const int n, const int k)
+    const half* bias, half* out, const int n, const int k, int bias_stride)
 {
     static_assert(NPerBlock == 1 || (NPerBlock % 2 == 0));
     using Details = WeightOnlyKernelDetails<QType>;
@@ -401,11 +401,11 @@ __global__ void weight_only_batched_gemv(const uint8_t* qweight, const half* sca
             v += sm[j][i];
         }
         float bias_v = 0.f;
+        int b = i / NPerBlock / Interleave;
         if constexpr (Bias)
         {
-            bias_v = __half2float(bias[n_start_id + nid]);
+            bias_v = __half2float(bias[b * bias_stride + n_start_id + nid]);
         }
-        int b = i / NPerBlock / Interleave;
         out[b * n + n_start_id + nid] = __float2half_rn(ActOp<float>::apply(v + bias_v));
     }
 }
@@ -423,7 +423,8 @@ struct WeightOnlyBatchedGemvKernelLauncher
         int size = sizeof(float) * BlockSize / 32 * Batch * NPerBlock * kInterleave;
         weight_only_batched_gemv<QType, WeightOnlyFlag, ActOp, Zero, Bias, NPerBlock, Batch, BlockSize>
             <<<grid, block, size, stream>>>(
-                params.qweight, params.scales, params.zeros, params.in, params.bias, params.out, params.n, params.k);
+                params.qweight, params.scales, params.zeros, params.in, params.bias, params.out, params.n, params.k,
+                params.bias_stride);
     }
 };
 } // namespace kernels

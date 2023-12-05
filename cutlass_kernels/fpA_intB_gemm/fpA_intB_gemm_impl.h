@@ -45,7 +45,6 @@ void dispatch_to_weight_only_batched_gemv(const half* A, const WeightType* B, co
     int bias_stride, char* workspace_ptr, size_t workspace_bytes, cudaStream_t stream)
 {
     using namespace tensorrt_llm::kernels;
-    assert(bias_stride == 0);
 
     // Convert WeightType
     WeightOnlyQuantType weight_type
@@ -82,6 +81,7 @@ void dispatch_to_weight_only_batched_gemv(const half* A, const WeightType* B, co
         n,
         k,
         group_size,
+        bias_stride,
     };
 
     weight_only_batched_gemv_launcher(weight_type, quant_type, weight_only_activation, params, stream);
