@@ -418,6 +418,7 @@ struct WeightOnlyBatchedGemvKernelLauncher
 
     static void run(const WeightOnlyParams& params, cudaStream_t stream)
     {
+#if defined(__CUDA_ARCH__) && __CUDA_ARCH__ >= 530
         dim3 grid(params.n / NPerBlock / kInterleave);
         dim3 block(BlockSize);
         int size = sizeof(float) * BlockSize / 32 * Batch * NPerBlock * kInterleave;
@@ -425,6 +426,9 @@ struct WeightOnlyBatchedGemvKernelLauncher
             <<<grid, block, size, stream>>>(
                 params.qweight, params.scales, params.zeros, params.in, params.bias, params.out, params.n, params.k,
                 params.bias_stride);
+#else
+        throw std::runtime_error("Not supported CUDA arch");
+#endif
     }
 };
 } // namespace kernels
