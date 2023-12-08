@@ -29,7 +29,9 @@ set(CMAKE_CUDA_FLAGS "${CMAKE_CUDA_FLAGS} -t 8 \
 
 file(GLOB WEIGHT_ONLY_BATCHED_GEMV_SRC ${CMAKE_CURRENT_SOURCE_DIR}/../weightOnlyBatchedGemv/*.cu)
 
-set(FPA_INTB_GEMM_SRC 
+file(GLOB MOE_GEMM_SRC moe_gemm/*.cu)
+
+set(FPA_INTB_GEMM_SRC
     fpA_intB_gemm/fpA_intB_gemm_per_col.cu
     fpA_intB_gemm/fpA_intB_gemm_finegrained.cu
     cutlass_heuristic.cc
@@ -37,6 +39,7 @@ set(FPA_INTB_GEMM_SRC
     ${CMAKE_CURRENT_SOURCE_DIR}/../utils/logger.cc
     ${CMAKE_CURRENT_SOURCE_DIR}/../utils/cuda_utils.cc
     ${WEIGHT_ONLY_BATCHED_GEMV_SRC}
+    ${MOE_GEMM_SRC}
     )
 
 add_library(fpA_intB_gemm SHARED ${FPA_INTB_GEMM_SRC})
