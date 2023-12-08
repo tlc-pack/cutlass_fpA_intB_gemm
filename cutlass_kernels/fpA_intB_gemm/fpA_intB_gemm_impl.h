@@ -25,20 +25,6 @@
 namespace fastertransformer
 {
 
-inline ActivationType get_activation(const std::string& activation_name)
-{
-    if (activation_name == "identity")
-        return ActivationType::Identity;
-    if (activation_name == "relu")
-        return ActivationType::Relu;
-    if (activation_name == "silu")
-        return ActivationType::Silu;
-    if (activation_name == "gelu")
-        return ActivationType::Gelu;
-    // todo: more
-    return ActivationType::InvalidType;
-}
-
 template <typename WeightType, cutlass::WeightOnlyQuantOp QuantOp>
 void dispatch_to_weight_only_batched_gemv(const half* A, const WeightType* B, const half* weight_scales,
     const half* bias, half* C, std::optional<std::string> activation, int m, int n, int k, int group_size,

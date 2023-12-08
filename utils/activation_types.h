@@ -39,4 +39,18 @@ inline bool isGatedActivation(ActivationType activaiton_type)
         || activaiton_type == ActivationType::SiGLU;
 }
 
+inline ActivationType get_activation(const std::string& activation_name)
+{
+    if (activation_name == "identity")
+        return ActivationType::Identity;
+    if (activation_name == "relu")
+        return ActivationType::Relu;
+    if (activation_name == "silu")
+        return ActivationType::Silu;
+    if (activation_name == "gelu")
+        return ActivationType::Gelu;
+    // todo: more
+    return ActivationType::InvalidType;
+}
+
 } // namespace fastertransformer
