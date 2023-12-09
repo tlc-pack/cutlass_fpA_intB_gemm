@@ -156,8 +156,9 @@ LayoutDetails getLayoutDetailsForTransform(QuantType quant_type, int arch)
 void permute_B_rows_for_mixed_gemm(int8_t* permuted_quantized_tensor, const int8_t* quantized_tensor,
     const std::vector<size_t>& shape, QuantType quant_type, const int64_t arch_version)
 {
-    const size_t num_rows = shape[0];
-    const size_t num_cols = shape[1];
+    const size_t num_experts = shape.size() == 2 ? 1 : shape[0];
+    const size_t num_rows = shape.size() == 2 ? shape[0] : shape[1];
+    const size_t num_cols = shape.size() == 2 ? shape[1] : shape[2];
 
     const int BITS_PER_ELT = get_bits_in_quant_type(quant_type);
     const int K = 16 / BITS_PER_ELT;
@@ -188,23 +189,27 @@ void permute_B_rows_for_mixed_gemm(int8_t* permuted_quantized_tensor, const int8
 
     // The code is written as below so it works for both int8
     // and packed int4.
-    for (size_t base_row = 0; base_row < num_rows; base_row += B_ROWS_PER_MMA)
+    for (int expert = 0; expert < num_experts; ++expert)
     {
-        for (int tile_row = 0; tile_row < B_ROWS_PER_MMA; ++tile_row)
+        const int64_t matrix_offset = expert * int64_t(num_rows) * int64_t(num_vec_cols);
+        for (int base_row = 0; base_row < num_rows; base_row += B_ROWS_PER_MMA)
         {
-
-            for (int write_col = 0; write_col < num_vec_cols; ++write_col)
+            for (int tile_row = 0; tile_row < B_ROWS_PER_MMA; ++tile_row)
             {
-                const int write_row = base_row + tile_row;
-                const int tile_read_row
-                    = 8 * (((tile_row % ELTS_PER_REG) / 2)) + tile_row % 2 + 2 * (tile_row / ELTS_PER_REG);
-                const int read_row = base_row + tile_read_row;
-                const int read_col = write_col;
 
-                const int64_t read_offset = int64_t(read_row) * num_vec_cols + read_col;
-                const int64_t write_offset = int64_t(write_row) * num_vec_cols + write_col;
+                for (int write_col = 0; write_col < num_vec_cols; ++write_col)
+                {
+                    const int write_row = base_row + tile_row;
+                    const int tile_read_row
+                        = 8 * (((tile_row % ELTS_PER_REG) / 2)) + tile_row % 2 + 2 * (tile_row / ELTS_PER_REG);
+                    const int read_row = base_row + tile_read_row;
+                    const int read_col = write_col;
 
-                output_byte_ptr[write_offset] = input_byte_ptr[read_offset];
+                    const int64_t read_offset = matrix_offset + int64_t(read_row) * num_vec_cols + read_col;
+                    const int64_t write_offset = matrix_offset + int64_t(write_row) * num_vec_cols + write_col;
+
+                    output_byte_ptr[write_offset] = input_byte_ptr[read_offset];
+                }
             }
         }
     }
@@ -219,11 +224,13 @@ void subbyte_transpose_impl(
     int8_t* transposed_quantized_tensor, const int8_t* quantized_tensor, const std::vector<size_t>& shape)
 {
     const int bits_per_elt = get_bits_in_quant_type(quant_type);
-    const size_t num_rows = shape[0];
-    const size_t num_cols = shape[1];
+    const size_t num_experts = shape.size() == 2 ? 1 : shape[0];
+    const size_t num_rows = shape.size() == 2 ? shape[0] : shape[1];
+    const size_t num_cols = shape.size() == 2 ? shape[1] : shape[2];
 
     const size_t col_bytes = num_cols * bits_per_elt / 8;
     const size_t col_bytes_trans = num_rows * bits_per_elt / 8;
+    const size_t num_bytes = size_t(num_experts) * num_rows * col_bytes;
 
     const uint8_t* input_byte_ptr = reinterpret_cast<const uint8_t*>(quantized_tensor);
     uint8_t* output_byte_ptr = reinterpret_cast<uint8_t*>(transposed_quantized_tensor);
@@ -244,97 +251,99 @@ void subbyte_transpose_impl(
         fmtstr("Number of bytes for rows and cols must be a multiple of %d. "
                "However, num_rows_bytes = %ld and num_col_bytes = %d.",
             VECTOR_WIDTH, col_bytes_trans, col_bytes));
-
-    for (size_t row_tile_start = 0; row_tile_start < num_rows; row_tile_start += M_TILE_L1)
+    for (size_t expert = 0; expert < num_experts; ++expert)
     {
-        for (size_t col_tile_start_byte = 0; col_tile_start_byte < col_bytes; col_tile_start_byte += N_TILE_L1)
+        const size_t matrix_offset = expert * num_rows * col_bytes;
+        for (size_t row_tile_start = 0; row_tile_start < num_rows; row_tile_start += M_TILE_L1)
         {
-
-            const int row_limit = std::min(row_tile_start + M_TILE_L1, num_rows);
-            const int col_limit = std::min(col_tile_start_byte + N_TILE_L1, col_bytes);
-
-            for (int ii = 0; ii < M_TILE_L1; ++ii)
+            for (size_t col_tile_start_byte = 0; col_tile_start_byte < col_bytes; col_tile_start_byte += N_TILE_L1)
             {
-                const int row = row_tile_start + ii;
 
-                for (int jj = 0; jj < N_TILE_L1; jj += VECTOR_WIDTH)
+                const int row_limit = std::min(row_tile_start + M_TILE_L1, num_rows);
+                const int col_limit = std::min(col_tile_start_byte + N_TILE_L1, col_bytes);
+
+                for (int ii = 0; ii < M_TILE_L1; ++ii)
                 {
-                    const int col = col_tile_start_byte + jj;
+                    const int row = row_tile_start + ii;
 
-                    const size_t logical_src_offset = row * col_bytes + col;
-
-                    if (row < row_limit && col < col_limit)
+                    for (int jj = 0; jj < N_TILE_L1; jj += VECTOR_WIDTH)
                     {
-                        for (int v = 0; v < VECTOR_WIDTH; ++v)
+                        const int col = col_tile_start_byte + jj;
+
+                        const size_t logical_src_offset = matrix_offset + row * col_bytes + col;
+
+                        if (row < row_limit && col < col_limit)
                         {
-                            cache_buf[ii][jj + v] = input_byte_ptr[logical_src_offset + v];
+                            for (int v = 0; v < VECTOR_WIDTH; ++v)
+                            {
+                                cache_buf[ii][jj + v] = input_byte_ptr[logical_src_offset + v];
+                            }
                         }
                     }
                 }
-            }
 
-            if (quant_type == QuantType::INT8_WEIGHT_ONLY)
-            {
-                for (int ii = 0; ii < M_TILE_L1; ++ii)
+                if (quant_type == QuantType::INT8_WEIGHT_ONLY)
                 {
-                    for (int jj = ii + 1; jj < N_TILE_L1; ++jj)
+                    for (int ii = 0; ii < M_TILE_L1; ++ii)
                     {
-                        std::swap(cache_buf[ii][jj], cache_buf[jj][ii]);
-                    }
-                }
-            }
-            else if (quant_type == QuantType::PACKED_INT4_WEIGHT_ONLY)
-            {
-
-                for (int ii = 0; ii < M_TILE_L1; ++ii)
-                {
-                    // Using M_TILE_L1 here is deliberate since we assume that the cache
-                    // tile is square in the number of elements (not necessarily the
-                    // number of bytes).
-                    for (int jj = ii + 1; jj < M_TILE_L1; ++jj)
-                    {
-                        const int ii_byte = ii / ELTS_PER_BYTE;
-                        const int ii_bit_offset = ii % ELTS_PER_BYTE;
-
-                        const int jj_byte = jj / ELTS_PER_BYTE;
-                        const int jj_bit_offset = jj % ELTS_PER_BYTE;
-
-                        uint8_t src_elt = 0xF & (cache_buf[ii][jj_byte] >> (4 * jj_bit_offset));
-                        uint8_t tgt_elt = 0xF & (cache_buf[jj][ii_byte] >> (4 * ii_bit_offset));
-
-                        cache_buf[ii][jj_byte] &= (0xF0 >> (4 * jj_bit_offset));
-                        cache_buf[jj][ii_byte] &= (0xF0 >> (4 * ii_bit_offset));
-
-                        cache_buf[ii][jj_byte] |= (tgt_elt << (4 * jj_bit_offset));
-                        cache_buf[jj][ii_byte] |= (src_elt << (4 * ii_bit_offset));
-                    }
-                }
-            }
-            else
-            {
-                FT_CHECK_WITH_INFO(false, "Unsupported quantization type.");
-            }
-
-            const size_t row_tile_start_trans = col_tile_start_byte * ELTS_PER_BYTE;
-            const size_t col_tile_start_byte_trans = row_tile_start / ELTS_PER_BYTE;
-
-            const int row_limit_trans = std::min(row_tile_start_trans + M_TILE_L1, num_cols);
-            const int col_limit_trans = std::min(col_tile_start_byte_trans + N_TILE_L1, col_bytes_trans);
-
-            for (int ii = 0; ii < M_TILE_L1; ++ii)
-            {
-                const int row = row_tile_start_trans + ii;
-                for (int jj = 0; jj < N_TILE_L1; jj += VECTOR_WIDTH)
-                {
-                    const int col = col_tile_start_byte_trans + jj;
-
-                    const size_t logical_tgt_offset = row * col_bytes_trans + col;
-
-                    if (row < row_limit_trans && col < col_limit_trans)
-                    {
-                        for (int v = 0; v < VECTOR_WIDTH; ++v)
+                        for (int jj = ii + 1; jj < N_TILE_L1; ++jj)
                         {
-                            output_byte_ptr[logical_tgt_offset + v] = cache_buf[ii][jj + v];
+                            std::swap(cache_buf[ii][jj], cache_buf[jj][ii]);
+                        }
+                    }
+                }
+                else if (quant_type == QuantType::PACKED_INT4_WEIGHT_ONLY)
+                {
+
+                    for (int ii = 0; ii < M_TILE_L1; ++ii)
+                    {
+                        // Using M_TILE_L1 here is deliberate since we assume that the cache tile
+                        // is square in the number of elements (not necessarily the number of bytes).
+                        for (int jj = ii + 1; jj < M_TILE_L1; ++jj)
+                        {
+                            const int ii_byte = ii / ELTS_PER_BYTE;
+                            const int ii_bit_offset = ii % ELTS_PER_BYTE;
+
+                            const int jj_byte = jj / ELTS_PER_BYTE;
+                            const int jj_bit_offset = jj % ELTS_PER_BYTE;
+
+                            uint8_t src_elt = 0xF & (cache_buf[ii][jj_byte] >> (4 * jj_bit_offset));
+                            uint8_t tgt_elt = 0xF & (cache_buf[jj][ii_byte] >> (4 * ii_bit_offset));
+
+                            cache_buf[ii][jj_byte] &= (0xF0 >> (4 * jj_bit_offset));
+                            cache_buf[jj][ii_byte] &= (0xF0 >> (4 * ii_bit_offset));
+
+                            cache_buf[ii][jj_byte] |= (tgt_elt << (4 * jj_bit_offset));
+                            cache_buf[jj][ii_byte] |= (src_elt << (4 * ii_bit_offset));
+                        }
+                    }
+                }
+                else
+                {
+                    FT_CHECK_WITH_INFO(false, "Unsupported quantization type.");
+                }
+
+                const size_t row_tile_start_trans = col_tile_start_byte * ELTS_PER_BYTE;
+                const size_t col_tile_start_byte_trans = row_tile_start / ELTS_PER_BYTE;
+
+                const int row_limit_trans = std::min(row_tile_start_trans + M_TILE_L1, num_cols);
+                const int col_limit_trans = std::min(col_tile_start_byte_trans + N_TILE_L1, col_bytes_trans);
+
+                for (int ii = 0; ii < M_TILE_L1; ++ii)
+                {
+                    const int row = row_tile_start_trans + ii;
+                    for (int jj = 0; jj < N_TILE_L1; jj += VECTOR_WIDTH)
+                    {
+                        const int col = col_tile_start_byte_trans + jj;
+
+                        const size_t logical_tgt_offset = matrix_offset + row * col_bytes_trans + col;
+
+                        if (row < row_limit_trans && col < col_limit_trans)
+                        {
+                            for (int v = 0; v < VECTOR_WIDTH; ++v)
+                            {
+                                output_byte_ptr[logical_tgt_offset + v] = cache_buf[ii][jj + v];
+                            }
                         }
                     }
                 }
@@ -470,10 +479,11 @@ void interleave_column_major_tensor(int8_t* interleaved_quantized_tensor, const 
 {
     // We only want to run this step for weight only quant.
     FT_CHECK(quant_type == QuantType::PACKED_INT4_WEIGHT_ONLY || quant_type == QuantType::INT8_WEIGHT_ONLY);
-    FT_CHECK_WITH_INFO(shape.size() == 2, "Shape must be 2-D");
+    FT_CHECK_WITH_INFO(shape.size() == 2 || shape.size() == 3, "Shape must be 2-D or 3-D");
 
-    const size_t num_rows = shape[0];
-    const size_t num_cols = shape[1];
+    const size_t num_experts = shape.size() == 2 ? 1 : shape[0];
+    const size_t num_rows = shape.size() == 2 ? shape[0] : shape[1];
+    const size_t num_cols = shape.size() == 2 ? shape[1] : shape[2];
 
     const int BITS_PER_ELT = get_bits_in_quant_type(quant_type);
     const int elts_in_int32 = 32 / BITS_PER_ELT;
@@ -502,20 +512,25 @@ void interleave_column_major_tensor(int8_t* interleaved_quantized_tensor, const 
     const int vec_rows_per_tile = rows_per_tile / elts_in_int32;
     const int interleave = details.columns_interleaved;
 
-    for (size_t read_col = 0; read_col < num_cols; ++read_col)
+    for (int expert = 0; expert < num_experts; ++expert)
     {
-        const auto write_col = read_col / interleave;
-        for (int base_vec_row = 0; base_vec_row < num_vec_rows; base_vec_row += vec_rows_per_tile)
+        const int64_t matrix_offset = expert * int64_t(num_vec_rows) * int64_t(num_cols);
+        for (int read_col = 0; read_col < num_cols; ++read_col)
         {
-            for (int vec_read_row = base_vec_row;
-                 vec_read_row < std::min(num_vec_rows, base_vec_row + vec_rows_per_tile); ++vec_read_row)
+            const int64_t write_col = read_col / interleave;
+            for (int base_vec_row = 0; base_vec_row < num_vec_rows; base_vec_row += vec_rows_per_tile)
             {
-                const int64_t vec_write_row = interleave * base_vec_row + vec_rows_per_tile * (read_col % interleave)
-                    + vec_read_row % vec_rows_per_tile;
+                for (int vec_read_row = base_vec_row;
+                     vec_read_row < std::min(num_vec_rows, base_vec_row + vec_rows_per_tile); ++vec_read_row)
+                {
+                    const int64_t vec_write_row = interleave * base_vec_row
+                        + vec_rows_per_tile * (read_col % interleave) + vec_read_row % vec_rows_per_tile;
 
-                const int64_t read_offset = int64_t(read_col) * num_vec_rows + vec_read_row;
-                const int64_t write_offset = int64_t(write_col) * num_vec_rows * interleave + vec_write_row;
-                output_byte_ptr[write_offset] = input_byte_ptr[read_offset];
+                    const int64_t read_offset = matrix_offset + int64_t(read_col) * num_vec_rows + vec_read_row;
+                    const int64_t write_offset
+                        = matrix_offset + int64_t(write_col) * num_vec_rows * interleave + vec_write_row;
+                    output_byte_ptr[write_offset] = input_byte_ptr[read_offset];
+                }
             }
         }
     }
@@ -526,7 +541,7 @@ void preprocess_weights_for_mixed_gemm(int8_t* preprocessed_quantized_weight, co
 {
     LayoutDetails details = getLayoutDetailsForTransform(quant_type, arch);
 
-    FT_CHECK_WITH_INFO(shape.size() == 2, "Shape must be 2-D");
+    FT_CHECK_WITH_INFO(shape.size() == 2 || shape.size() == 3, "Shape must be 2-D or 3-D");
 
     size_t num_elts = 1;
     for (const auto& dim : shape)
