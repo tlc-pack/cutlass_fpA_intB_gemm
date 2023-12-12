@@ -578,12 +578,20 @@ void preprocess_weights_for_mixed_gemm(int8_t* preprocessed_quantized_weight, co
     std::copy(src_buf.begin(), src_buf.end(), preprocessed_quantized_weight);
 }
 
-void preprocess_weights(int8_t* preprocessed_quantized_weight, const int8_t* row_major_quantized_weight, size_t rows,
-    size_t cols, bool is_int4, int arch)
+void preprocess_weights(int8_t* preprocessed_quantized_weight, const int8_t* row_major_quantized_weight,
+    size_t num_experts, size_t rows, size_t cols, bool is_int4, int arch)
 {
     QuantType qtype = is_int4 ? QuantType::PACKED_INT4_WEIGHT_ONLY : QuantType::INT8_WEIGHT_ONLY;
-    preprocess_weights_for_mixed_gemm(
-        preprocessed_quantized_weight, row_major_quantized_weight, {rows, cols}, qtype, arch);
+    std::vector<size_t> shape;
+    if (num_experts == -1)
+    {
+        shape = {rows, cols};
+    }
+    else
+    {
+        shape = {num_experts, rows, cols};
+    }
+    preprocess_weights_for_mixed_gemm(preprocessed_quantized_weight, row_major_quantized_weight, shape, qtype, arch);
 }
 
 } // namespace fastertransformer

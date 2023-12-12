@@ -24,6 +24,8 @@
 namespace fastertransformer
 {
 
+using tensorrt_llm::cutlass_extensions::CutlassGemmConfig;
+
 template <typename T, /*The type used for activations/scales/compute*/
     typename WeightType /* The type for the MoE weights */>
 class MoeGemmRunner

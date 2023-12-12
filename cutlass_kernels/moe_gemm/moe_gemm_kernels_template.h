@@ -429,8 +429,8 @@ void MoeGemmRunner<T, WeightType>::run_gemm<EpilogueTag>(const T* A, const Weigh
     FT_LOG_DEBUG(__PRETTY_FUNCTION__);
     static constexpr bool is_weight_only = !std::is_same<T, WeightType>::value;
     static constexpr bool only_simt_configs = std::is_same<T, float>::value;
-    std::vector<CutlassGemmConfig> candidate_configs
-        = get_candidate_configs(sm_, true, cutlass::WeightOnlyQuantOp::PER_COLUMN_SCALE_ONLY, only_simt_configs);
+    std::vector<CutlassGemmConfig> candidate_configs = get_candidate_configs(
+        sm_, is_weight_only, cutlass::WeightOnlyQuantOp::PER_COLUMN_SCALE_ONLY, only_simt_configs);
     std::vector<int> occupancies(candidate_configs.size());
 
     for (size_t ii = 0; ii < candidate_configs.size(); ++ii)

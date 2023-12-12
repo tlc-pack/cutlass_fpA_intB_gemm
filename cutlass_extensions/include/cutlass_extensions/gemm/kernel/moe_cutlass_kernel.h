@@ -68,6 +68,20 @@ struct use_dq_gemm<Mma, void_t<typename Mma::IteratorScale>> : platform::true_ty
 {
 };
 
+template <typename Mma, typename platform::enable_if<use_dq_gemm<Mma>::value, bool>::type = true>
+CUTLASS_DEVICE static Mma create_mma(
+    typename Mma::SharedStorage& storage, int group_size, int thread_idx, int warp_idx, int lane_idx)
+{
+    return Mma(storage, group_size, thread_idx, warp_idx, lane_idx);
+}
+
+template <typename Mma, typename platform::enable_if<!use_dq_gemm<Mma>::value, bool>::type = true>
+CUTLASS_DEVICE static Mma create_mma(
+    typename Mma::SharedStorage& storage, int group_size, int thread_idx, int warp_idx, int lane_idx)
+{
+    return Mma(storage, thread_idx, warp_idx, lane_idx);
+}
+
 // SFINAE overload for dequantizing gemm
 template <typename Mma, typename ElementScale, typename platform::enable_if<use_dq_gemm<Mma>::value, bool>::type = true>
 CUTLASS_DEVICE static void run_mma(Mma mma, int gemm_k_iterations, typename Mma::FragmentC& accum,
@@ -439,7 +453,8 @@ public:
                 //
 
                 // Construct thread-scoped matrix multiply
-                Mma mma(shared_storage.main_loop, thread_idx, warp_idx, lane_idx);
+                // TODO: support group size
+                Mma mma = create_mma<Mma>(shared_storage.main_loop, /*group_size=*/-1, thread_idx, warp_idx, lane_idx);
 
                 // Compute threadblock-scoped matrix multiply-add
                 int gemm_k_iterations = (problem_size.k() + Mma::Shape::kK - 1) / Mma::Shape::kK;
@@ -458,7 +473,8 @@ public:
 
                 EpilogueOutputOp output_op(params.output_op);
 
-                ElementC* ptr_C = reinterpret_cast<ElementC*>(params.ptr_C) + problem_idx * gemm_n;
+                ElementC* ptr_C
+                    = params.ptr_C ? reinterpret_cast<ElementC*>(params.ptr_C) + problem_idx * gemm_n : nullptr;
                 ElementC* ptr_D = reinterpret_cast<ElementC*>(params.ptr_D) + rows_to_jump * gemm_n;
 
                 LayoutC layout_C(0);
