@@ -260,8 +260,8 @@ public:
 
 template <WeightOnlyQuantType QType, typename WeightOnlyFlag, template <typename T> class ActOp, bool Zero, bool Bias,
     int NPerBlock, int Batch, int BlockSize>
-__global__ void weight_only_batched_gemv(const uint8_t* qweight, const half* scales, const half* zeros, const half* in,
-    const half* bias, half* out, const int n, const int k, int bias_stride)
+__device__ void weight_only_batched_gemv_impl(const uint8_t* qweight, const half* scales, const half* zeros,
+    const half* in, const half* bias, half* out, const int n, const int k, int bias_stride, uint8_t* shmem)
 {
     static_assert(NPerBlock == 1 || (NPerBlock % 2 == 0));
     using Details = WeightOnlyKernelDetails<QType>;
@@ -271,7 +271,7 @@ __global__ void weight_only_batched_gemv(const uint8_t* qweight, const half* sca
     using CvtSrcType = typename Converter::source_type;
     using CvtResType = typename Converter::result_type;
     using ScaleLoader = WeightOnlyScaleLoader<QType, WeightOnlyFlag, Zero, BlockSize>;
-    extern __shared__ uint8_t shmem[];
+
     constexpr int Interleave = Details::kInterleave;
     constexpr int WarpSize = 32;
     constexpr int Num = Batch * NPerBlock;
@@ -412,6 +412,16 @@ __global__ void weight_only_batched_gemv(const uint8_t* qweight, const half* sca
 
 template <WeightOnlyQuantType QType, typename WeightOnlyFlag, template <typename T> class ActOp, bool Zero, bool Bias,
     int NPerBlock, int Batch, int BlockSize>
+__global__ void weight_only_batched_gemv(const uint8_t* qweight, const half* scales, const half* zeros, const half* in,
+    const half* bias, half* out, const int n, const int k, int bias_stride)
+{
+    extern __shared__ uint8_t shmem[];
+    weight_only_batched_gemv_impl<QType, WeightOnlyFlag, ActOp, Zero, Bias, NPerBlock, Batch, BlockSize>(
+        qweight, scales, zeros, in, bias, out, n, k, bias_stride, shmem);
+}
+
+template <WeightOnlyQuantType QType, typename WeightOnlyFlag, template <typename T> class ActOp, bool Zero, bool Bias,
+    int NPerBlock, int Batch, int BlockSize>
 struct WeightOnlyBatchedGemvKernelLauncher
 {
     static constexpr int kInterleave = WeightLayoutDetails<QType>::kInterleave;
@@ -423,9 +433,8 @@ struct WeightOnlyBatchedGemvKernelLauncher
         dim3 block(BlockSize);
         int size = sizeof(float) * BlockSize / 32 * Batch * NPerBlock * kInterleave;
         weight_only_batched_gemv<QType, WeightOnlyFlag, ActOp, Zero, Bias, NPerBlock, Batch, BlockSize>
-            <<<grid, block, size, stream>>>(
-                params.qweight, params.scales, params.zeros, params.in, params.bias, params.out, params.n, params.k,
-                params.bias_stride);
+            <<<grid, block, size, stream>>>(params.qweight, params.scales, params.zeros, params.in, params.bias,
+                params.out, params.n, params.k, params.bias_stride);
 #else
         throw std::runtime_error("Not supported CUDA arch");
 #endif
