@@ -189,10 +189,10 @@ void permute_B_rows_for_mixed_gemm(int8_t* permuted_quantized_tensor, const int8
 
     // The code is written as below so it works for both int8
     // and packed int4.
-    for (int expert = 0; expert < num_experts; ++expert)
+    for (size_t expert = 0; expert < num_experts; ++expert)
     {
         const int64_t matrix_offset = expert * int64_t(num_rows) * int64_t(num_vec_cols);
-        for (int base_row = 0; base_row < num_rows; base_row += B_ROWS_PER_MMA)
+        for (size_t base_row = 0; base_row < num_rows; base_row += B_ROWS_PER_MMA)
         {
             for (int tile_row = 0; tile_row < B_ROWS_PER_MMA; ++tile_row)
             {
@@ -230,7 +230,6 @@ void subbyte_transpose_impl(
 
     const size_t col_bytes = num_cols * bits_per_elt / 8;
     const size_t col_bytes_trans = num_rows * bits_per_elt / 8;
-    const size_t num_bytes = size_t(num_experts) * num_rows * col_bytes;
 
     const uint8_t* input_byte_ptr = reinterpret_cast<const uint8_t*>(quantized_tensor);
     uint8_t* output_byte_ptr = reinterpret_cast<uint8_t*>(transposed_quantized_tensor);
@@ -512,10 +511,10 @@ void interleave_column_major_tensor(int8_t* interleaved_quantized_tensor, const 
     const int vec_rows_per_tile = rows_per_tile / elts_in_int32;
     const int interleave = details.columns_interleaved;
 
-    for (int expert = 0; expert < num_experts; ++expert)
+    for (size_t expert = 0; expert < num_experts; ++expert)
     {
         const int64_t matrix_offset = expert * int64_t(num_vec_rows) * int64_t(num_cols);
-        for (int read_col = 0; read_col < num_cols; ++read_col)
+        for (size_t read_col = 0; read_col < num_cols; ++read_col)
         {
             const int64_t write_col = read_col / interleave;
             for (int base_vec_row = 0; base_vec_row < num_vec_rows; base_vec_row += vec_rows_per_tile)
@@ -582,15 +581,7 @@ void preprocess_weights(int8_t* preprocessed_quantized_weight, const int8_t* row
     size_t num_experts, size_t rows, size_t cols, bool is_int4, int arch)
 {
     QuantType qtype = is_int4 ? QuantType::PACKED_INT4_WEIGHT_ONLY : QuantType::INT8_WEIGHT_ONLY;
-    std::vector<size_t> shape;
-    if (num_experts == -1)
-    {
-        shape = {rows, cols};
-    }
-    else
-    {
-        shape = {num_experts, rows, cols};
-    }
+    std::vector<size_t> shape{num_experts, rows, cols};
     preprocess_weights_for_mixed_gemm(preprocessed_quantized_weight, row_major_quantized_weight, shape, qtype, arch);
 }
 
