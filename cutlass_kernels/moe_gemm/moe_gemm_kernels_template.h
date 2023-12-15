@@ -34,6 +34,7 @@
 
 #include "../cutlass_heuristic.h"
 #include "./moe_gemm_kernels.h"
+#include "./moe_gemv_kernels.h"
 #include "utils/cuda_utils.h"
 #include <cuda.h>
 #include <cuda_fp16.h>
@@ -454,6 +455,16 @@ void MoeGemmRunner<T, WeightType>::moe_gemm_bias_act(const T* A, const WeightTyp
     int num_experts, ActivationType activation_type, cudaStream_t stream)
 {
     FT_LOG_DEBUG(__PRETTY_FUNCTION__);
+    if constexpr (std::is_same_v<WeightType, cutlass::uint4b_t>)
+    {
+        using namespace tensorrt_llm::kernels;
+        if (!biases && activation_type == ActivationType::Identity && total_rows <= 4)
+        {
+            moe_gemv<WeightOnlyQuantType::Int4b, WeightOnlyPerChannel>(A, reinterpret_cast<const uint8_t*>(B),
+                weight_scales, C, total_rows_before_expert, total_rows, gemm_n, gemm_k, num_experts, stream);
+            return;
+        }
+    }
     switch (activation_type)
     {
     case ActivationType::Relu:
