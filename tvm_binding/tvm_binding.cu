@@ -1,0 +1,74 @@
+/*
+ * Copyright (c) 2020-2023, NVIDIA CORPORATION.  All rights reserved.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+#include <cutlass_kernels/fpA_intB_gemm.h>
+#include <dlpack/dlpack.h>
+#include <tvm/runtime/packed_func.h>
+#include <tvm/runtime/registry.h>
+
+#define SWITCH_QUANT_OP(group_size, k, ...)                                                                            \
+    if (group_size == k)                                                                                               \
+    {                                                                                                                  \
+        constexpr auto quant_op = cutlass::WeightOnlyQuantOp::PER_COLUMN_SCALE_ONLY;                                   \
+        __VA_ARGS__                                                                                                    \
+    }                                                                                                                  \
+    else                                                                                                               \
+    {                                                                                                                  \
+        constexpr auto quant_op = cutlass::WeightOnlyQuantOp::FINEGRAINED_SCALE_ONLY;                                  \
+        __VA_ARGS__                                                                                                    \
+    }
+
+int _fastertransformer_gemm_fp16_int(
+    DLTensor* x, DLTensor* weight, DLTensor* scale, int m, int n, int k, int group_size, DLTensor* output)
+{
+    CHECK_GT(group_size, 0);
+    CHECK_LE(group_size, k);
+
+    auto func = tvm::runtime::Registry::Get("runtime.get_cuda_stream");
+    ICHECK(func != nullptr);
+    cudaStream_t stream = static_cast<cudaStream_t>((*func)().operator void*());
+
+    SWITCH_QUANT_OP(
+        group_size, k,
+        fastertransformer::gemm_fp16_int_bias_act<cutlass::uint4b_t, quant_op>(static_cast<cutlass::half_t*>(x->data),
+            static_cast<cutlass::uint4b_t*>(weight->data), static_cast<cutlass::half_t*>(scale->data), nullptr,
+            static_cast<cutlass::half_t*>(output->data), std::nullopt, m, n, k, group_size, 0, nullptr, 0, stream););
+
+    return 0;
+}
+
+int _fastertransformer_gemm_fp16_int_bias(DLTensor* x, DLTensor* weight, DLTensor* scale, DLTensor* bias, int m, int n,
+    int k, int group_size, int bias_stride, DLTensor* output)
+{
+    CHECK_GT(group_size, 0);
+    CHECK_LE(group_size, k);
+
+    auto func = tvm::runtime::Registry::Get("runtime.get_cuda_stream");
+    ICHECK(func != nullptr);
+    cudaStream_t stream = static_cast<cudaStream_t>((*func)().operator void*());
+
+    SWITCH_QUANT_OP(
+        group_size, k,
+        fastertransformer::gemm_fp16_int_bias_act<cutlass::uint4b_t, quant_op>(static_cast<cutlass::half_t*>(x->data),
+            static_cast<cutlass::uint4b_t*>(weight->data), static_cast<cutlass::half_t*>(scale->data),
+            static_cast<cutlass::half_t*>(bias->data), static_cast<cutlass::half_t*>(output->data), std::nullopt, m, n,
+            k, group_size, bias_stride, nullptr, 0, stream););
+
+    return 0;
+}
+
+TVM_REGISTER_GLOBAL("fastertransformer.gemm_fp16_int").set_body_typed(_fastertransformer_gemm_fp16_int);
+TVM_REGISTER_GLOBAL("fastertransformer.gemm_fp16_int_bias").set_body_typed(_fastertransformer_gemm_fp16_int_bias);
