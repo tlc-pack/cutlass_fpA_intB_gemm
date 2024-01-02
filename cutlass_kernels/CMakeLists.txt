@@ -36,3 +36,7 @@ set(FPA_INTB_GEMM_SRC
     )
 
 add_library(fpA_intB_gemm SHARED ${FPA_INTB_GEMM_SRC})
+target_compile_options(
+  fpA_intB_gemm PRIVATE
+  $<$<COMPILE_LANGUAGE:CUDA>:-expt-relaxed-constexpr>
+)
