@@ -11,14 +11,13 @@
 #include "cutlass_extensions/include/cutlass_extensions/weight_only_quant_op.h"
 #include <cuda_runtime.h>
 
+#include "./cutlass_preprocessors.h"
+
 namespace fastertransformer
 {
 
 using half = cutlass::half_t;
 using uint4b_t = cutlass::uint4b_t;
-
-void preprocess_weights(int8_t* preprocessed_quantized_weight, const int8_t* row_major_quantized_weight, size_t rows,
-    size_t cols, bool is_int4, int arch);
 
 template <typename WeightType, cutlass::WeightOnlyQuantOp QuantOp>
 void gemm_fp16_int_bias_act(const half* A, const WeightType* B, const half* weight_scales, const half* bias, half* C,
