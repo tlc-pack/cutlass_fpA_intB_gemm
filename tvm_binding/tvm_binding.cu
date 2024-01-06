@@ -16,6 +16,8 @@
 
 #include <cutlass_kernels/fpA_intB_gemm.h>
 #include <dlpack/dlpack.h>
+#include <optional>
+#include <string>
 #include <tvm/runtime/packed_func.h>
 #include <tvm/runtime/registry.h>
 
@@ -31,8 +33,8 @@
         __VA_ARGS__                                                                                                    \
     }
 
-int _fastertransformer_gemm_fp16_int(
-    DLTensor* x, DLTensor* weight, DLTensor* scale, int m, int n, int k, int group_size, DLTensor* output)
+int _fastertransformer_gemm_fp16_int(DLTensor* x, DLTensor* weight, DLTensor* scale, std::string activation, int m,
+    int n, int k, int group_size, DLTensor* output)
 {
     CHECK_GT(group_size, 0);
     CHECK_LE(group_size, k);
@@ -40,18 +42,22 @@ int _fastertransformer_gemm_fp16_int(
     auto func = tvm::runtime::Registry::Get("runtime.get_cuda_stream");
     ICHECK(func != nullptr);
     cudaStream_t stream = static_cast<cudaStream_t>((*func)().operator void*());
+
+    std::optional<std::string> activation_opt = activation;
+    if (activation == "identity")
+        activation_opt = std::nullopt;
 
     SWITCH_QUANT_OP(
         group_size, k,
         fastertransformer::gemm_fp16_int_bias_act<cutlass::uint4b_t, quant_op>(static_cast<cutlass::half_t*>(x->data),
             static_cast<cutlass::uint4b_t*>(weight->data), static_cast<cutlass::half_t*>(scale->data), nullptr,
-            static_cast<cutlass::half_t*>(output->data), std::nullopt, m, n, k, group_size, 0, nullptr, 0, stream););
+            static_cast<cutlass::half_t*>(output->data), activation_opt, m, n, k, group_size, 0, nullptr, 0, stream););
 
     return 0;
 }
 
-int _fastertransformer_gemm_fp16_int_bias(DLTensor* x, DLTensor* weight, DLTensor* scale, DLTensor* bias, int m, int n,
-    int k, int group_size, int bias_stride, DLTensor* output)
+int _fastertransformer_gemm_fp16_int_bias(DLTensor* x, DLTensor* weight, DLTensor* scale, DLTensor* bias,
+    std::string activation, int m, int n, int k, int group_size, int bias_stride, DLTensor* output)
 {
     CHECK_GT(group_size, 0);
     CHECK_LE(group_size, k);
@@ -60,15 +66,42 @@ int _fastertransformer_gemm_fp16_int_bias(DLTensor* x, DLTensor* weight, DLTenso
     ICHECK(func != nullptr);
     cudaStream_t stream = static_cast<cudaStream_t>((*func)().operator void*());
 
+    std::optional<std::string> activation_opt = activation;
+    if (activation == "identity")
+        activation_opt = std::nullopt;
+
     SWITCH_QUANT_OP(
         group_size, k,
         fastertransformer::gemm_fp16_int_bias_act<cutlass::uint4b_t, quant_op>(static_cast<cutlass::half_t*>(x->data),
             static_cast<cutlass::uint4b_t*>(weight->data), static_cast<cutlass::half_t*>(scale->data),
-            static_cast<cutlass::half_t*>(bias->data), static_cast<cutlass::half_t*>(output->data), std::nullopt, m, n,
-            k, group_size, bias_stride, nullptr, 0, stream););
+            static_cast<cutlass::half_t*>(bias->data), static_cast<cutlass::half_t*>(output->data), activation_opt, m,
+            n, k, group_size, bias_stride, nullptr, 0, stream););
+
+    return 0;
+}
+
+int _fastertransformer_gemm_fp16_int_bias_residual(DLTensor* x, DLTensor* weight, DLTensor* scale, DLTensor* bias,
+    DLTensor* residual, std::string activation, std::string binary_op, std::string unary_op, int m, int n, int k,
+    int group_size, DLTensor* output)
+{
+    CHECK_GT(group_size, 0);
+    CHECK_LE(group_size, k);
+
+    auto func = tvm::runtime::Registry::Get("runtime.get_cuda_stream");
+    ICHECK(func != nullptr);
+    cudaStream_t stream = static_cast<cudaStream_t>((*func)().operator void*());
+
+    SWITCH_QUANT_OP(group_size, k,
+                    fastertransformer::gemm_fp16_int_bias_act_residual<cutlass::uint4b_t, quant_op>(
+                        static_cast<cutlass::half_t*>(x->data), static_cast<cutlass::uint4b_t*>(weight->data),
+                        static_cast<cutlass::half_t*>(scale->data), static_cast<cutlass::half_t*>(bias->data),
+                        static_cast<cutlass::half_t*>(residual->data), static_cast<cutlass::half_t*>(output->data),
+                        activation, binary_op, unary_op, m, n, k, group_size, nullptr, 0, stream););
 
     return 0;
 }
 
 TVM_REGISTER_GLOBAL("fastertransformer.gemm_fp16_int").set_body_typed(_fastertransformer_gemm_fp16_int);
 TVM_REGISTER_GLOBAL("fastertransformer.gemm_fp16_int_bias").set_body_typed(_fastertransformer_gemm_fp16_int_bias);
+TVM_REGISTER_GLOBAL("fastertransformer.gemm_fp16_int_bias_residual")
+    .set_body_typed(_fastertransformer_gemm_fp16_int_bias_residual);
