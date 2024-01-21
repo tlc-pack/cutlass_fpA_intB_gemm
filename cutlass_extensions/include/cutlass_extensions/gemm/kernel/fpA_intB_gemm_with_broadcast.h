@@ -127,7 +127,7 @@ struct GemmFpAIntBWithBroadcast
         int64_t batch_stride_Vector;
         int64_t batch_stride_Tensor;
 
-        int lda, ldb, ldc, ldd, ldr, ldt;
+        int lda, ldb, ld_scale_zero, ldc, ldd, ldr, ldt;
 
         typename EpilogueOutputOp::Params output_op;
 
@@ -144,7 +144,7 @@ struct GemmFpAIntBWithBroadcast
             typename EpilogueOutputOp::Params epilogue, void const* ptr_A, void const* ptr_B, void const* ptr_scales,
             void const* ptr_C, void* ptr_D, const void* ptr_Vector, const void* ptr_Tensor, int64_t batch_stride_A,
             int64_t batch_stride_B, int64_t batch_stride_C, int64_t batch_stride_D, int64_t batch_stride_Vector,
-            int64_t batch_stride_Tensor, int lda, int ldb, int ldc, int ldd, int ldr, int ldt,
+            int64_t batch_stride_Tensor, int lda, int ldb, int ld_scale_zero, int ldc, int ldd, int ldr, int ldt,
             typename EpilogueOutputOp::Params output_op = typename EpilogueOutputOp::Params())
             : problem_size(problem_size)
             , group_size(group_size)
@@ -165,6 +165,7 @@ struct GemmFpAIntBWithBroadcast
             , batch_stride_Tensor(batch_stride_Tensor)
             , lda(lda)
             , ldb(ldb)
+            , ld_scale_zero(ld_scale_zero)
             , ldc(ldc)
             , ldd(ldd)
             , ldr(ldr)
@@ -240,6 +241,7 @@ struct GemmFpAIntBWithBroadcast
             , swizzle_log_tile(ThreadblockSwizzle().get_log_tile(grid_tiled_shape))
             , params_A(args.lda)
             , params_B(args.ldb)
+            , params_scale(args.ld_scale_zero)
             , params_C(args.ldc)
             , params_D(args.ldd)
             , params_Tensor(args.ldt)
@@ -347,7 +349,9 @@ struct GemmFpAIntBWithBroadcast
             cutlass::MatrixCoord tb_offset_B{threadblock_tile_offset.k() * params.gemm_k_size * kInterleave,
                 threadblock_tile_offset.n() * Mma::Shape::kN / kInterleave};
 
-            cutlass::MatrixCoord tb_offset_scale{0, threadblock_tile_offset.n() * Mma::Shape::kN};
+            typename MatrixCoord::Index fg_row_offset = threadblock_tile_offset.k() * params.gemm_k_size / 64;
+            typename MatrixCoord::Index scale_row_offset = isFinegrained(Mma::QuantOp) ? fg_row_offset : 0;
+            cutlass::MatrixCoord tb_offset_scale{scale_row_offset, threadblock_tile_offset.n() * Mma::Shape::kN};
 
             // Problem size is a function of threadblock index in the K dimension
             int problem_size_k = min(params.problem_size.k(), (threadblock_tile_offset.k() + 1) * params.gemm_k_size);

@@ -468,9 +468,10 @@ void dispatch_gemm_residual(const T* A, const WeightType* B, const T* weight_sca
         : k * GemmKernel::kInterleave;
     const int ldc = n;
 
+    const int ld_scale_zero = cutlass::isFinegrained(QuantOp) ? n : 0;
     typename Gemm::Arguments args({m, n, k}, group_size, batch_count,
         {ElementAccumulator(1.f), ElementAccumulator(1.f)}, A, B, weight_scales, residual, C, biases, nullptr, 0, 0, 0,
-        0, 0, 0, lda, ldb, ldc, ldc, 0, 0);
+        0, 0, 0, lda, ldb, ld_scale_zero, ldc, ldc, 0, 0);
 
     if (GemmKernel::kInterleave > 1
         && ((k % MixedGemmArchTraits::ThreadblockK) || (k % MixedGemmArchTraits::ThreadblockK)))
@@ -635,19 +636,19 @@ void dispatch_gemm_residual(CutlassGemmConfig config, const T* A, const WeightTy
             weight_scales, biases, residual, C, m, n, k, group_size, binary_op, unary_op, workspace_ptr,
             workspace_bytes, stream);
     }
-    else if ("silu")
+    else if (activation == "silu")
     {
         dispatch_gemm_residual<T, WeightType, Arch, QuantOp, cutlass::epilogue::thread::SiLu>(config, A, B,
             weight_scales, biases, residual, C, m, n, k, group_size, binary_op, unary_op, workspace_ptr,
             workspace_bytes, stream);
     }
-    else if ("relu")
+    else if (activation == "relu")
     {
         dispatch_gemm_residual<T, WeightType, Arch, QuantOp, cutlass::epilogue::thread::ReLu>(config, A, B,
             weight_scales, biases, residual, C, m, n, k, group_size, binary_op, unary_op, workspace_ptr,
             workspace_bytes, stream);
     }
-    else if ("gelu")
+    else if (activation == "gelu")
     {
         dispatch_gemm_residual<T, WeightType, Arch, QuantOp, cutlass::epilogue::thread::GELU>(config, A, B,
             weight_scales, biases, residual, C, m, n, k, group_size, binary_op, unary_op, workspace_ptr,
@@ -678,7 +679,7 @@ void CutlassFpAIntBGemmRunner<T, WeightType, QuantOp>::gemm_bias_act_residual(co
     CutlassGemmConfig chosen_config = estimate_best_config_from_occupancies(
         candidate_configs, occupancies, m, n, k, 1, SPLIT_K_LIMIT, workspace_bytes, multi_processor_count_, true);
 
-    if (sm_ >= 80 && sm_ < 90)
+    if (sm_ >= 80 && sm_ <= 90)
     {
         dispatch_gemm_residual<T, WeightType, cutlass::arch::Sm80, QuantOp>(chosen_config, A, B, weight_scales, biases,
             residual, C, m, n, k, group_size, activation, binary_op, unary_op, workspace_ptr, workspace_bytes, stream);
