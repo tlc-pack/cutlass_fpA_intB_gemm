@@ -61,7 +61,7 @@ public:
 private:
     template <typename EpilogueTag>
     void dispatch_to_arch(const T* A, const WeightType* B, const T* weight_scales, const T* biases, T* C, int m, int n,
-        int k, int group_size, int bias_stride, CutlassGemmConfig gemm_config, char* workspace_ptr,
+        int k, int group_size, int bias_stride, tensorrt_llm::cutlass_extensions::CutlassGemmConfig gemm_config, char* workspace_ptr,
         const size_t workspace_bytes, cudaStream_t stream, int* occupancy = nullptr);
 
     template <typename EpilogueTag>
