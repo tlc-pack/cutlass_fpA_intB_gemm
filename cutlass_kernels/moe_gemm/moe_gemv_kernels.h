@@ -13,7 +13,6 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
 #pragma once
 #include "weightOnlyBatchedGemv/kernel.h"
 
@@ -63,11 +62,14 @@ void moe_gemv(const half* A, const uint8_t* B, const half* weight_scales, half* 
     constexpr int NPerBlock = 1;
     dim3 grid(gemm_n / NPerBlock / kInterleave, total_rows);
     dim3 block(BlockSize);
-    int size = sizeof(float) * BlockSize / 32 * Batch * NPerBlock * kInterleave * total_rows;
+    int size = sizeof(float) * BlockSize / 32 * Batch * NPerBlock * kInterleave;
     moe_weight_only_batched_gemv<QType, WeightOnlyFlag, IdentityActivation, false, false, NPerBlock, Batch, BlockSize>
         <<<grid, block, size, stream>>>(B, weight_scales, nullptr, A, nullptr, C, total_rows_before_expert, total_rows,
             gemm_n, gemm_k, num_experts);
 }
+
+void moe_gemv(const half* A, const half* B, half* C, int64_t* total_rows_before_expert, int64_t total_rows,
+    int64_t gemm_n, int64_t gemm_k, int num_experts, cudaStream_t stream);
 
 } // namespace kernels
 } // namespace tensorrt_llm

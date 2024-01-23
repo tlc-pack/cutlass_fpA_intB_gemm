@@ -465,6 +465,17 @@ void MoeGemmRunner<T, WeightType>::moe_gemm_bias_act(const T* A, const WeightTyp
             return;
         }
     }
+    else if constexpr (std::is_same_v<WeightType, half>)
+    {
+        using namespace tensorrt_llm::kernels;
+        if (!biases && activation_type == ActivationType::Identity && total_rows <= 4 && gemm_k % 8 == 0)
+        {
+            moe_gemv(A, reinterpret_cast<const half*>(B), C, total_rows_before_expert, total_rows, gemm_n, gemm_k,
+                num_experts, stream);
+            return;
+        }
+    }
+
     switch (activation_type)
     {
     case ActivationType::Relu:
