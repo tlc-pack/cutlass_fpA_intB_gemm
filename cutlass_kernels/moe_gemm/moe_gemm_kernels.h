@@ -57,15 +57,12 @@ private:
 };
 
 template <typename T, typename WeightType>
+void moe_gemm(const T* A, const WeightType* B, const T* weight_scales, T* C, int64_t* total_rows_before_expert,
+    int64_t total_rows, int64_t gemm_n, int64_t gemm_k, int num_experts, cudaStream_t stream);
+
+template <typename T, typename WeightType>
 void moe_gemm_bias_act(const T* A, const WeightType* B, const T* weight_scales, const T* biases, T* C,
     int64_t* total_rows_before_expert, int64_t total_rows, int64_t gemm_n, int64_t gemm_k, int num_experts,
-    std::optional<std::string> activation, cudaStream_t stream)
-{
-    MoeGemmRunner<T, WeightType> runner;
-    ActivationType activation_type
-        = !activation.has_value() ? ActivationType::Identity : get_activation(activation.value());
-    runner.moe_gemm_bias_act(A, B, weight_scales, biases, C, total_rows_before_expert, total_rows, gemm_n, gemm_k,
-        num_experts, activation_type, stream);
-}
+    std::optional<std::string> activation, cudaStream_t stream);
 
 } // namespace fastertransformer

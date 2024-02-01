@@ -19,9 +19,14 @@
 namespace fastertransformer
 {
 
-template
-void moe_gemm_bias_act(const half* A, const uint8_t* B, const half* weight_scales, const half* biases, half* C,
+template void moe_gemm(const half* A, const uint8_t* B, const half* weight_scales, half* C,
     int64_t* total_rows_before_expert, int64_t total_rows, int64_t gemm_n, int64_t gemm_k, int num_experts,
-    std::optional<std::string> activation, cudaStream_t stream);
+    cudaStream_t stream);
 
-}
+// unused. commented out to speed up compilation
+// template
+// void moe_gemm_bias_act(const half* A, const uint8_t* B, const half* weight_scales, const half* biases, half* C,
+//     int64_t* total_rows_before_expert, int64_t total_rows, int64_t gemm_n, int64_t gemm_k, int num_experts,
+//     std::optional<std::string> activation, cudaStream_t stream);
+
+} // namespace fastertransformer
