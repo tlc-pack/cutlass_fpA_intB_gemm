@@ -525,6 +525,16 @@ void MoeGemmRunner<T, WeightType>::moe_gemm(const T* A, const WeightType* B, con
             return;
         }
     }
+    else if constexpr (std::is_same_v<WeightType, half>)
+    {
+        using namespace tensorrt_llm::kernels;
+        if (total_rows <= 4)
+        {
+            moe_gemv(A, reinterpret_cast<const half*>(B), C, total_rows_before_expert, total_rows, gemm_n, gemm_k,
+                num_experts, stream);
+            return;
+        }
+    }
     run_gemm<EpilogueOpNoBias>(
         A, B, weight_scales, nullptr, C, total_rows_before_expert, total_rows, gemm_n, gemm_k, num_experts, stream);
 }
