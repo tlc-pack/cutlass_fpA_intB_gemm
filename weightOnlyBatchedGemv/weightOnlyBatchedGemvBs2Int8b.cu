@@ -36,6 +36,14 @@ template struct WeightOnlyBatchedGemvKernelLauncher<WeightOnlyQuantType::Int8b, 
     false, true, 2, 2, 256>;
 template struct WeightOnlyBatchedGemvKernelLauncher<WeightOnlyQuantType::Int8b, WeightOnlyPerChannel, ReluActivation,
     false, false, 2, 2, 256>;
+template struct WeightOnlyBatchedGemvKernelLauncher<WeightOnlyQuantType::Int8b, WeightOnlyPerChannel, SiluActivation,
+    true, true, 2, 2, 256>;
+template struct WeightOnlyBatchedGemvKernelLauncher<WeightOnlyQuantType::Int8b, WeightOnlyPerChannel, SiluActivation,
+    true, false, 2, 2, 256>;
+template struct WeightOnlyBatchedGemvKernelLauncher<WeightOnlyQuantType::Int8b, WeightOnlyPerChannel, SiluActivation,
+    false, true, 2, 2, 256>;
+template struct WeightOnlyBatchedGemvKernelLauncher<WeightOnlyQuantType::Int8b, WeightOnlyPerChannel, SiluActivation,
+    false, false, 2, 2, 256>;
 template struct WeightOnlyBatchedGemvKernelLauncher<WeightOnlyQuantType::Int8b, WeightOnlyPerChannel,
     IdentityActivation, true, true, 2, 2, 256>;
 template struct WeightOnlyBatchedGemvKernelLauncher<WeightOnlyQuantType::Int8b, WeightOnlyPerChannel,
@@ -59,6 +67,14 @@ template struct WeightOnlyBatchedGemvKernelLauncher<WeightOnlyQuantType::Int8b, 
 template struct WeightOnlyBatchedGemvKernelLauncher<WeightOnlyQuantType::Int8b, WeightOnlyGroupWise<64>, ReluActivation,
     false, true, 2, 2, 256>;
 template struct WeightOnlyBatchedGemvKernelLauncher<WeightOnlyQuantType::Int8b, WeightOnlyGroupWise<64>, ReluActivation,
+    false, false, 2, 2, 256>;
+template struct WeightOnlyBatchedGemvKernelLauncher<WeightOnlyQuantType::Int8b, WeightOnlyGroupWise<64>, SiluActivation,
+    true, true, 2, 2, 256>;
+template struct WeightOnlyBatchedGemvKernelLauncher<WeightOnlyQuantType::Int8b, WeightOnlyGroupWise<64>, SiluActivation,
+    true, false, 2, 2, 256>;
+template struct WeightOnlyBatchedGemvKernelLauncher<WeightOnlyQuantType::Int8b, WeightOnlyGroupWise<64>, SiluActivation,
+    false, true, 2, 2, 256>;
+template struct WeightOnlyBatchedGemvKernelLauncher<WeightOnlyQuantType::Int8b, WeightOnlyGroupWise<64>, SiluActivation,
     false, false, 2, 2, 256>;
 template struct WeightOnlyBatchedGemvKernelLauncher<WeightOnlyQuantType::Int8b, WeightOnlyGroupWise<64>,
     IdentityActivation, true, true, 2, 2, 256>;
@@ -84,6 +100,14 @@ template struct WeightOnlyBatchedGemvKernelLauncher<WeightOnlyQuantType::Int8b, 
     ReluActivation, false, true, 2, 2, 256>;
 template struct WeightOnlyBatchedGemvKernelLauncher<WeightOnlyQuantType::Int8b, WeightOnlyGroupWise<128>,
     ReluActivation, false, false, 2, 2, 256>;
+template struct WeightOnlyBatchedGemvKernelLauncher<WeightOnlyQuantType::Int8b, WeightOnlyGroupWise<128>,
+    SiluActivation, true, true, 2, 2, 256>;
+template struct WeightOnlyBatchedGemvKernelLauncher<WeightOnlyQuantType::Int8b, WeightOnlyGroupWise<128>,
+    SiluActivation, true, false, 2, 2, 256>;
+template struct WeightOnlyBatchedGemvKernelLauncher<WeightOnlyQuantType::Int8b, WeightOnlyGroupWise<128>,
+    SiluActivation, false, true, 2, 2, 256>;
+template struct WeightOnlyBatchedGemvKernelLauncher<WeightOnlyQuantType::Int8b, WeightOnlyGroupWise<128>,
+    SiluActivation, false, false, 2, 2, 256>;
 template struct WeightOnlyBatchedGemvKernelLauncher<WeightOnlyQuantType::Int8b, WeightOnlyGroupWise<128>,
     IdentityActivation, true, true, 2, 2, 256>;
 template struct WeightOnlyBatchedGemvKernelLauncher<WeightOnlyQuantType::Int8b, WeightOnlyGroupWise<128>,

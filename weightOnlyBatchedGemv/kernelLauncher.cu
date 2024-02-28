@@ -69,6 +69,11 @@ void select_activation(WeightOnlyActivationType atype, const WeightOnlyParams& p
         select_zero_bias<QType, WeightOnlyFlag, ReluActivation, N_PER_BLOCK, BATCH, BLOCK_SIZE>(params, stream);
         break;
     }
+    case WeightOnlyActivationType::Silu:
+    {
+        select_zero_bias<QType, WeightOnlyFlag, SiluActivation, N_PER_BLOCK, BATCH, BLOCK_SIZE>(params, stream);
+        break;
+    }
     case WeightOnlyActivationType::Identity:
     {
         select_zero_bias<QType, WeightOnlyFlag, IdentityActivation, N_PER_BLOCK, BATCH, BLOCK_SIZE>(params, stream);

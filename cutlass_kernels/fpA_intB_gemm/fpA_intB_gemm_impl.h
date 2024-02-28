@@ -19,7 +19,7 @@
 #include "../fpA_intB_gemm.h"
 #include "./fpA_intB_gemm_template.h"
 #include "weightOnlyBatchedGemv/kernelLauncher.h"
-
+#include "cuda_utils.h"
 #include <type_traits>
 
 namespace fastertransformer
@@ -47,7 +47,7 @@ void dispatch_to_weight_only_batched_gemv(const half* A, const WeightType* B, co
         const std::unordered_map<ActivationType, WeightOnlyActivationType> activation_mapping{
             {ActivationType::Identity, WeightOnlyActivationType::Identity},
             {ActivationType::Relu, WeightOnlyActivationType::Relu},
-            // {ActivationType::Silu, WeightOnlyActivationType::Silu},  // TODO: add silu
+            {ActivationType::Silu, WeightOnlyActivationType::Silu},  // TODO: add silu
             {ActivationType::Gelu, WeightOnlyActivationType::Gelu},
         };
         if (activation.has_value())
@@ -78,7 +78,7 @@ void gemm_fp16_int_bias_act(const half* A, const WeightType* B, const half* weig
     std::optional<std::string> activation, int m, int n, int k, int group_size, int bias_stride, char* workspace_ptr,
     size_t workspace_bytes, cudaStream_t stream)
 {
-    if (m <= 4 && (!activation.has_value() || activation.value() != "silu"))
+    if (m <= 4 && getSMVersion() >= 75)
     {
         dispatch_to_weight_only_batched_gemv<WeightType, QuantOp>(A, B, weight_scales, bias, C, activation, m, n, k,
             group_size, bias_stride, workspace_ptr, workspace_bytes, stream);
