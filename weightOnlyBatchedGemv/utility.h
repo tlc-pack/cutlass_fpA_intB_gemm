@@ -78,6 +78,15 @@ struct IdentityActivation
     }
 };
 
+template <typename T>
+struct SiluActivation
+{
+    static __device__ __forceinline__ T apply(const T& val)
+    {
+        return (val / (1.f + expf((float) -val)));
+    }
+};
+
 template <typename VecType, typename T0, typename T1>
 __device__ __forceinline__ void load(T0* dst, T1* src, size_t offset = 0)
 {

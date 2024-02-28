@@ -78,6 +78,7 @@ enum class WeightOnlyActivationType
     Gelu,
     Relu,
     Identity,
+    Silu,
     InvalidType
 };
 } // namespace kernels
