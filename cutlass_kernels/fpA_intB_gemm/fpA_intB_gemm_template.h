@@ -338,7 +338,7 @@ void CutlassFpAIntBGemmRunner<T, WeightType, QuantOp>::dispatch_to_arch<Epilogue
         dispatch_gemm_to_cutlass<T, WeightType, cutlass::arch::Sm75, QuantOp, EpilogueTag>(A, B, weight_scales, biases,
             C, m, n, k, group_size, bias_stride, workspace_ptr, workspace_bytes, gemm_config, stream, occupancy);
     }
-    else if (sm_ >= 80 && sm_ < 90)
+    else if (sm_ >= 80 && sm_ < 110)
     {
         dispatch_gemm_to_cutlass<T, WeightType, cutlass::arch::Sm80, QuantOp, EpilogueTag>(A, B, weight_scales, biases,
             C, m, n, k, group_size, bias_stride, workspace_ptr, workspace_bytes, gemm_config, stream, occupancy);
@@ -679,7 +679,7 @@ void CutlassFpAIntBGemmRunner<T, WeightType, QuantOp>::gemm_bias_act_residual(co
     CutlassGemmConfig chosen_config = estimate_best_config_from_occupancies(
         candidate_configs, occupancies, m, n, k, 1, SPLIT_K_LIMIT, workspace_bytes, multi_processor_count_, true);
 
-    if (sm_ >= 80 && sm_ <= 90)
+    if (sm_ >= 80 && sm_ <= 110)
     {
         dispatch_gemm_residual<T, WeightType, cutlass::arch::Sm80, QuantOp>(chosen_config, A, B, weight_scales, biases,
             residual, C, m, n, k, group_size, activation, binary_op, unary_op, workspace_ptr, workspace_bytes, stream);
