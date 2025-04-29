@@ -40,9 +40,8 @@ int _fastertransformer_gemm_fp16_int(DLTensor* x, DLTensor* weight, DLTensor* sc
     CHECK_GT(group_size, 0);
     CHECK_LE(group_size, k);
 
-    auto func = tvm::runtime::Registry::Get("runtime.get_cuda_stream");
-    ICHECK(func != nullptr);
-    cudaStream_t stream = static_cast<cudaStream_t>((*func)().operator void*());
+    static auto get_cuda_stream = tvm::ffi::Function::GetGlobalRequired("runtime.get_cuda_stream");
+    cudaStream_t stream = static_cast<cudaStream_t>(get_cuda_stream().operator void*());
 
     std::optional<std::string> activation_opt = activation;
     if (activation == "identity")
@@ -63,9 +62,8 @@ int _fastertransformer_gemm_fp16_int_bias(DLTensor* x, DLTensor* weight, DLTenso
     CHECK_GT(group_size, 0);
     CHECK_LE(group_size, k);
 
-    auto func = tvm::runtime::Registry::Get("runtime.get_cuda_stream");
-    ICHECK(func != nullptr);
-    cudaStream_t stream = static_cast<cudaStream_t>((*func)().operator void*());
+    static auto get_cuda_stream = tvm::ffi::Function::GetGlobalRequired("runtime.get_cuda_stream");
+    cudaStream_t stream = static_cast<cudaStream_t>(get_cuda_stream().operator void*());
 
     std::optional<std::string> activation_opt = activation;
     if (activation == "identity")
@@ -88,9 +86,8 @@ int _fastertransformer_gemm_fp16_int_bias_residual(DLTensor* x, DLTensor* weight
     CHECK_GT(group_size, 0);
     CHECK_LE(group_size, k);
 
-    auto func = tvm::runtime::Registry::Get("runtime.get_cuda_stream");
-    ICHECK(func != nullptr);
-    cudaStream_t stream = static_cast<cudaStream_t>((*func)().operator void*());
+    static auto get_cuda_stream = tvm::ffi::Function::GetGlobalRequired("runtime.get_cuda_stream");
+    cudaStream_t stream = static_cast<cudaStream_t>(get_cuda_stream().operator void*());
 
     SWITCH_QUANT_OP(group_size, k,
                     fastertransformer::gemm_fp16_int_bias_act_residual<cutlass::uint4b_t, quant_op>(
@@ -105,12 +102,11 @@ int _fastertransformer_gemm_fp16_int_bias_residual(DLTensor* x, DLTensor* weight
 void _fastertransformer_moe_gemm_fp16_fp16(DLTensor* x, DLTensor* weight, DLTensor* total_rows_before_expert,
                                         int64_t total_rows, int64_t n, int64_t k, int num_experts,
                                         DLTensor* out) {
-      auto func = tvm::runtime::Registry::Get("runtime.get_cuda_stream");
-      ICHECK(func != nullptr);
-      cudaStream_t stream = static_cast<cudaStream_t>((*func)().operator void*());
+    static auto get_cuda_stream = tvm::ffi::Function::GetGlobalRequired("runtime.get_cuda_stream");
+    cudaStream_t stream = static_cast<cudaStream_t>(get_cuda_stream().operator void*());
 
       fastertransformer::moe_gemm<half, half>(
-          static_cast<half*>(x->data), static_cast<half*>(weight->data), nullptr, 
+          static_cast<half*>(x->data), static_cast<half*>(weight->data), nullptr,
           static_cast<half*>(out->data),
           static_cast<int64_t*>(total_rows_before_expert->data), total_rows, n, k, num_experts,
           stream);
@@ -119,14 +115,13 @@ void _fastertransformer_moe_gemm_fp16_fp16(DLTensor* x, DLTensor* weight, DLTens
 void _fastertransformer_moe_gemm_fp16_int(DLTensor* x, DLTensor* weight, DLTensor* scale, DLTensor* total_rows_before_expert,
                                         int64_t total_rows, int64_t n, int64_t k, int num_experts, int group_size,
                                         DLTensor* out) {
-      auto func = tvm::runtime::Registry::Get("runtime.get_cuda_stream");
-      ICHECK(func != nullptr);
-      cudaStream_t stream = static_cast<cudaStream_t>((*func)().operator void*());
+      static auto get_cuda_stream = tvm::ffi::Function::GetGlobalRequired("runtime.get_cuda_stream");
+      cudaStream_t stream = static_cast<cudaStream_t>(get_cuda_stream().operator void*());
 
       ICHECK(group_size == k) << "group quantization not supported yet";
 
       fastertransformer::moe_gemm<half, cutlass::uint4b_t>(
-          static_cast<half*>(x->data), static_cast<cutlass::uint4b_t*>(weight->data), static_cast<half*>(scale->data), 
+          static_cast<half*>(x->data), static_cast<cutlass::uint4b_t*>(weight->data), static_cast<half*>(scale->data),
           static_cast<half*>(out->data),
           static_cast<int64_t*>(total_rows_before_expert->data), total_rows, n, k, num_experts,
           stream);
