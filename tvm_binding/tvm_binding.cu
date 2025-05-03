@@ -41,7 +41,7 @@ int _fastertransformer_gemm_fp16_int(DLTensor* x, DLTensor* weight, DLTensor* sc
     CHECK_LE(group_size, k);
 
     static auto get_cuda_stream = tvm::ffi::Function::GetGlobalRequired("runtime.get_cuda_stream");
-    cudaStream_t stream = static_cast<cudaStream_t>(get_cuda_stream().operator void*());
+    cudaStream_t stream = static_cast<cudaStream_t>(get_cuda_stream().cast<void*>());
 
     std::optional<std::string> activation_opt = activation;
     if (activation == "identity")
@@ -63,7 +63,7 @@ int _fastertransformer_gemm_fp16_int_bias(DLTensor* x, DLTensor* weight, DLTenso
     CHECK_LE(group_size, k);
 
     static auto get_cuda_stream = tvm::ffi::Function::GetGlobalRequired("runtime.get_cuda_stream");
-    cudaStream_t stream = static_cast<cudaStream_t>(get_cuda_stream().operator void*());
+    cudaStream_t stream = static_cast<cudaStream_t>(get_cuda_stream().cast<void*>());
 
     std::optional<std::string> activation_opt = activation;
     if (activation == "identity")
@@ -87,7 +87,7 @@ int _fastertransformer_gemm_fp16_int_bias_residual(DLTensor* x, DLTensor* weight
     CHECK_LE(group_size, k);
 
     static auto get_cuda_stream = tvm::ffi::Function::GetGlobalRequired("runtime.get_cuda_stream");
-    cudaStream_t stream = static_cast<cudaStream_t>(get_cuda_stream().operator void*());
+    cudaStream_t stream = static_cast<cudaStream_t>(get_cuda_stream().cast<void*>());
 
     SWITCH_QUANT_OP(group_size, k,
                     fastertransformer::gemm_fp16_int_bias_act_residual<cutlass::uint4b_t, quant_op>(
@@ -103,7 +103,7 @@ void _fastertransformer_moe_gemm_fp16_fp16(DLTensor* x, DLTensor* weight, DLTens
                                         int64_t total_rows, int64_t n, int64_t k, int num_experts,
                                         DLTensor* out) {
     static auto get_cuda_stream = tvm::ffi::Function::GetGlobalRequired("runtime.get_cuda_stream");
-    cudaStream_t stream = static_cast<cudaStream_t>(get_cuda_stream().operator void*());
+    cudaStream_t stream = static_cast<cudaStream_t>(get_cuda_stream().cast<void*>());
 
       fastertransformer::moe_gemm<half, half>(
           static_cast<half*>(x->data), static_cast<half*>(weight->data), nullptr,
@@ -116,7 +116,7 @@ void _fastertransformer_moe_gemm_fp16_int(DLTensor* x, DLTensor* weight, DLTenso
                                         int64_t total_rows, int64_t n, int64_t k, int num_experts, int group_size,
                                         DLTensor* out) {
       static auto get_cuda_stream = tvm::ffi::Function::GetGlobalRequired("runtime.get_cuda_stream");
-      cudaStream_t stream = static_cast<cudaStream_t>(get_cuda_stream().operator void*());
+      cudaStream_t stream = static_cast<cudaStream_t>(get_cuda_stream().cast<void*>());
 
       ICHECK(group_size == k) << "group quantization not supported yet";
 
