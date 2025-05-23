@@ -20,6 +20,7 @@
 #include <optional>
 #include <string>
 #include <tvm/ffi/function.h>
+#include <tvm/runtime/logging.h>
 
 #define SWITCH_QUANT_OP(group_size, k, ...)                                                                            \
     if (group_size == k)                                                                                               \
