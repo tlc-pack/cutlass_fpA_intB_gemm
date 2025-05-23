@@ -19,8 +19,7 @@
 #include <dlpack/dlpack.h>
 #include <optional>
 #include <string>
-#include <tvm/runtime/packed_func.h>
-#include <tvm/runtime/registry.h>
+#include <tvm/ffi/function.h>
 
 #define SWITCH_QUANT_OP(group_size, k, ...)                                                                            \
     if (group_size == k)                                                                                               \
@@ -127,9 +126,9 @@ void _fastertransformer_moe_gemm_fp16_int(DLTensor* x, DLTensor* weight, DLTenso
           stream);
     };
 
-TVM_REGISTER_GLOBAL("fastertransformer.gemm_fp16_int").set_body_typed(_fastertransformer_gemm_fp16_int);
-TVM_REGISTER_GLOBAL("fastertransformer.gemm_fp16_int_bias").set_body_typed(_fastertransformer_gemm_fp16_int_bias);
-TVM_REGISTER_GLOBAL("fastertransformer.gemm_fp16_int_bias_residual")
+TVM_FFI_REGISTER_GLOBAL("fastertransformer.gemm_fp16_int").set_body_typed(_fastertransformer_gemm_fp16_int);
+TVM_FFI_REGISTER_GLOBAL("fastertransformer.gemm_fp16_int_bias").set_body_typed(_fastertransformer_gemm_fp16_int_bias);
+TVM_FFI_REGISTER_GLOBAL("fastertransformer.gemm_fp16_int_bias_residual")
     .set_body_typed(_fastertransformer_gemm_fp16_int_bias_residual);
-TVM_REGISTER_GLOBAL("fastertransformer.moe_gemm_fp16_fp16").set_body_typed(_fastertransformer_moe_gemm_fp16_fp16);
-TVM_REGISTER_GLOBAL("fastertransformer.moe_gemm_fp16_int").set_body_typed(_fastertransformer_moe_gemm_fp16_int);
+TVM_FFI_REGISTER_GLOBAL("fastertransformer.moe_gemm_fp16_fp16").set_body_typed(_fastertransformer_moe_gemm_fp16_fp16);
+TVM_FFI_REGISTER_GLOBAL("fastertransformer.moe_gemm_fp16_int").set_body_typed(_fastertransformer_moe_gemm_fp16_int);
