@@ -139,7 +139,7 @@ LayoutDetails getLayoutDetailsForTransform(QuantType quant_type, int arch)
     {
         return getLayoutDetailsForArch<cutlass::arch::Sm80>(quant_type);
     }
-    else if (arch >= 90 && arch < 110)
+    else if (arch >= 90 && arch <= 120)
     {
         FT_LOG_WARNING("Using SM80's layout information for your architecture.");
         return getLayoutDetailsForArch<cutlass::arch::Sm80>(quant_type);
