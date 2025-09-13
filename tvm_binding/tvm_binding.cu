@@ -128,7 +128,7 @@ void _fastertransformer_moe_gemm_fp16_int(DLTensor* x, DLTensor* weight, DLTenso
           stream);
     };
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef()
     .def("fastertransformer.gemm_fp16_int", _fastertransformer_gemm_fp16_int)
@@ -136,4 +136,4 @@ TVM_FFI_STATIC_INIT_BLOCK({
     .def("fastertransformer.gemm_fp16_int_bias_residual", _fastertransformer_gemm_fp16_int_bias_residual)
     .def("fastertransformer.moe_gemm_fp16_fp16", _fastertransformer_moe_gemm_fp16_fp16)
     .def("fastertransformer.moe_gemm_fp16_int", _fastertransformer_moe_gemm_fp16_int);
-});
+}
