@@ -38,8 +38,8 @@
 int _fastertransformer_gemm_fp16_int(DLTensor* x, DLTensor* weight, DLTensor* scale, std::string activation, int m,
     int n, int k, int group_size, DLTensor* output)
 {
-    CHECK_GT(group_size, 0);
-    CHECK_LE(group_size, k);
+    TVM_FFI_ICHECK_GT(group_size, 0);
+    TVM_FFI_ICHECK_LE(group_size, k);
 
     static auto get_cuda_stream = tvm::ffi::Function::GetGlobalRequired("runtime.get_cuda_stream");
     cudaStream_t stream = static_cast<cudaStream_t>(get_cuda_stream().cast<void*>());
@@ -60,8 +60,8 @@ int _fastertransformer_gemm_fp16_int(DLTensor* x, DLTensor* weight, DLTensor* sc
 int _fastertransformer_gemm_fp16_int_bias(DLTensor* x, DLTensor* weight, DLTensor* scale, DLTensor* bias,
     std::string activation, int m, int n, int k, int group_size, int bias_stride, DLTensor* output)
 {
-    CHECK_GT(group_size, 0);
-    CHECK_LE(group_size, k);
+    TVM_FFI_ICHECK_GT(group_size, 0);
+    TVM_FFI_ICHECK_LE(group_size, k);
 
     static auto get_cuda_stream = tvm::ffi::Function::GetGlobalRequired("runtime.get_cuda_stream");
     cudaStream_t stream = static_cast<cudaStream_t>(get_cuda_stream().cast<void*>());
@@ -84,8 +84,8 @@ int _fastertransformer_gemm_fp16_int_bias_residual(DLTensor* x, DLTensor* weight
     DLTensor* residual, std::string activation, std::string binary_op, std::string unary_op, int m, int n, int k,
     int group_size, DLTensor* output)
 {
-    CHECK_GT(group_size, 0);
-    CHECK_LE(group_size, k);
+    TVM_FFI_ICHECK_GT(group_size, 0);
+    TVM_FFI_ICHECK_LE(group_size, k);
 
     static auto get_cuda_stream = tvm::ffi::Function::GetGlobalRequired("runtime.get_cuda_stream");
     cudaStream_t stream = static_cast<cudaStream_t>(get_cuda_stream().cast<void*>());
@@ -119,7 +119,7 @@ void _fastertransformer_moe_gemm_fp16_int(DLTensor* x, DLTensor* weight, DLTenso
       static auto get_cuda_stream = tvm::ffi::Function::GetGlobalRequired("runtime.get_cuda_stream");
       cudaStream_t stream = static_cast<cudaStream_t>(get_cuda_stream().cast<void*>());
 
-      ICHECK(group_size == k) << "group quantization not supported yet";
+      TVM_FFI_ICHECK(group_size == k) << "group quantization not supported yet";
 
       fastertransformer::moe_gemm<half, cutlass::uint4b_t>(
           static_cast<half*>(x->data), static_cast<cutlass::uint4b_t*>(weight->data), static_cast<half*>(scale->data),
