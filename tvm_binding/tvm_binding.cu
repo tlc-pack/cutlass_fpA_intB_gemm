@@ -19,9 +19,10 @@
 #include <dlpack/dlpack.h>
 #include <optional>
 #include <string>
+#include <tvm/ffi/container/tensor.h>
 #include <tvm/ffi/function.h>
-#include <tvm/runtime/logging.h>
 #include <tvm/ffi/reflection/registry.h>
+#include <tvm/runtime/logging.h>
 
 #define SWITCH_QUANT_OP(group_size, k, ...)                                                                            \
     if (group_size == k)                                                                                               \
